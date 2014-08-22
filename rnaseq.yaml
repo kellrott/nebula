@@ -1,0 +1,10 @@
+
+all : [paradigm, clustering]
+
+
+paradigm :
+    - 
+        tool : paradigm
+
+
+clustering : 

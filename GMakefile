@@ -1,0 +1,7 @@
+
+query rna_matrix := select * from ldda where em.'dataSubType' == 'genomicMatrix'
+
+rule paradigm : rna_normal, cna_normal
+
+rule rna_normal : rna_matrix
+	normalize <- input_matrix : rna_matrix
