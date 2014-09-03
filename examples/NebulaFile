@@ -1,0 +1,8 @@
+
+from glob import glob
+import os
+
+a = glob("jobs/*")
+
+for i in a:
+    w = workflow(os.path.basename(i), {})
