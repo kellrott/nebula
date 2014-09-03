@@ -11,21 +11,14 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import os
-import sys
-import time
-import argparse
-import logging
-import hashlib
-import uuid
+
+class NotImplementedException(Exception):
+    def __init__(self):
+        Exception.__init__(self)
 
 
-from parser import NebulaCompile
-from scheduler import Scheduler
-from website import WebSite
+class CompileException(Exception):
+    def __init__(self, msg):
+        Exception.__init__(self, msg)
+        self.msg = msg
 
-
-class Config:
-    def __init__(self, mesos=None, port=9999):
-        self.mesos = mesos
-        self.port = port

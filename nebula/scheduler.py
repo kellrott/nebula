@@ -20,37 +20,24 @@ class Scheduler:
         self.state = 'starting'
         self.queued_jobs = []
         self.active_targets = {}
+        self.workers = {}
+        self.tasks = {}
+        self.dags = compiler.to_dags()
 
     def done(self):
         return self.state == 'done'
 
-    """
-    def get_next_job(self):
-        logging.info("Scanning for job")
-        if len(self.queued_jobs):
-            return self.queued_jobs.pop()
-
-        for i in self.active_targets.items():
-            pass
-    """
-
-    def start(self):
-        self.start_drms()
-        self.drms.work_loop()
-
-
-    def start_drms(self):
-        if self.config.mesos is not None:
-            import mesos_drms
-            self.drms = mesos_drms.MesosDRMS(self, self.config)
 
     def get_work(self, worker, host=None):
-        self.update(worker, {'host': host})
+        self.workers.update({'host': host})
         best_t = float('inf')
         best_priority = float('-inf')
         best_task = None
         locally_pending_tasks = 0
         running_tasks = []
+        
+        if len(self.tasks) <= 0:
+            self.dags.get_active_tasks()
 
         for task_id, task in self._tasks.iteritems():
             if worker not in task.workers:

@@ -15,7 +15,7 @@ class MesosDRMS(nebula.drms.DRMSWrapper):
         if self.config.mesos is None:
             logging.error("Mesos not configured")
             return
-        self.sched = GridScheduler(scheduler)
+        self.sched = NebularMesos(scheduler, config)
         self.framework = mesos_pb2.FrameworkInfo()
         self.framework.user = "" # Have Mesos fill in the current user.
         self.framework.name = "Nebula"
@@ -25,23 +25,25 @@ class MesosDRMS(nebula.drms.DRMSWrapper):
     def start(self):
         logging.info("Starting Mesos Thread")
         self.driver.run() #this doesn't return until stop is called by another thread
+    
+    def stop(self):
+        logging.info("Stoping Mesos Thread")
+        self.driver.stop() 
 
-class MesosListenThread(threading.Thread):
-
-    def run(self):
-        pass
-
-
-class GridScheduler(mesos.Scheduler):
+class NebularMesos(mesos.Scheduler):
     """
     The GridScheduler is responsible for deploying and managing child Galaxy instances using Mesos
     """
-    def __init__(self, scheduler):
+    def __init__(self, scheduler, config):
         mesos.Scheduler.__init__(self)
         self.scheduler = scheduler
+        self.config = config
         self.hosts = {}
-        self.master_url = "http://localhost:8080"
-
+        server = "localhost"
+        self.master_url = "http://%s:%d" % (server, config.port)
+        logging.info("Starting Mesos scheduler")
+        logging.info("Mesos Resource URL %s" % (self.master_url))
+        
 
     def getExecutorInfo(self):
         """
@@ -96,7 +98,7 @@ class GridScheduler(mesos.Scheduler):
     def resourceOffers(self, driver, offers):
         logging.debug("Got %s slot offers" % len(offers))
         batch_ready = {}
-        wq = WorkQueue(self.app.model.context)
+        #wq = WorkQueue(self.app.model.context)
 
         for offer in offers:
             #store the offer info
@@ -109,9 +111,14 @@ class GridScheduler(mesos.Scheduler):
             for res in offer.resources:
                 if res.name == 'mem':
                     mem_count = int(res.scalar.value)
-
-            self.comm.setComputeResourceInfo( ComputeResource(offer.hostname, cpu_count, mem_count) )
+            
             tasks = []
+            
+            work = self.scheduler.get_work(offer.hostname)
+            if work is not None:
+                logging.info("Starting work: %s" % (work))
+            """
+            self.comm.setComputeResourceInfo( ComputeResource(offer.hostname, cpu_count, mem_count) )
             if offer.hostname not in self.hosts:
                 farm_request = wq.get_farm_request()
                 if farm_request is not None:
@@ -124,6 +131,7 @@ class GridScheduler(mesos.Scheduler):
                     cpu_request += cpu_slice
                     tasks.append(task)
                     self.hosts[offer.hostname] = self.hosts.get(offer.hostname, 0) + cpu_slice
+            """
             status = driver.launchTasks(offer.id, tasks)
 
 

@@ -14,6 +14,8 @@
 
 import argparse
 import os
+import logging
+
 
 from nebula import NebulaCompile, Scheduler, Config, WebSite
 
@@ -27,17 +29,29 @@ def main(args):
     build.compile(filename)
     sched = Scheduler(build, config)
     web = WebSite(sched, config)
+    
+    if config.mesos is not None:
+        import nebula.mesos_drms
+        drms = nebula.mesos_drms.MesosDRMS(sched, config)
+
     web.start()
     try:
-        sched.start()
+        drms.start()
     finally:
         web.stop()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mesos", default="localhost:5050")
+    parser.add_argument("--mesos", default="127.0.0.1:5050")
     parser.add_argument("--port", type=int, default=9999)
+    parser.add_argument("-v", action="store_true", default=False)
     parser.add_argument("builddir", nargs="?", default=None)
     args = parser.parse_args()
+    
+    if args.v:
+        logging.basicConfig(level=logging.DEBUG)
+        logging.info("Verbose logging")
+    else:
+        logging.basicConfig(level=logging.INFO)
 
     main(args)
