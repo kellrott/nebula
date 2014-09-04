@@ -11,7 +11,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-
+import time
 from nebula.exceptions import NotImplementedException
 
 
@@ -26,7 +26,6 @@ UNKNOWN = 'UNKNOWN'
 class DagSet:
     def __init__(self):
         self.dags = {}
-        self.dag_state = {}
     
     def append(self, dag):
         dag_id = len(self.dags)
@@ -35,80 +34,73 @@ class DagSet:
     def get_tasks(self, states=None, limit=0):
         if states is None:
             states = [RUNNING]
-        
         out = []
-        while True:
-            found = False
-            if limit != 0 and len(out) >= limit:
-                break
-            
-            for d in self.get_dags(state):
-                if limit == 0:
-                    rlimit = 0
-                else:
-                    rlimit = limit - len(out)
-                a = d.get_tasks(states, rlimit)
-                if len(a):
-                    found = True
-                    out += a
-            if not found:
+        for d in self.get_dags(states):
+            if limit == 0:
+                rlimit = 0
+            else:
+                rlimit = limit - len(out)
+            a = d.get_tasks(states, rlimit)
+            out += a
+            if limit > 0 and len(out) >= limit:
                 break
         return out
-        
-        
+
     def get_dags(self, states=None, limit=0):
         if states is None:
             states = [RUNNING]
         out = []
         for i, k in self.dags.items():
-            if self.dag_state[i] in states:
+            if k.state in states:
                 out.append(k)
             if limit > 0 and len(out) >= limit:
                 break
         return out
-
-    def get_active_tasks(self, limit=1):
-        while self.get_dag_count(states) < limit and self.get_dag_count():
-            if c == 0:
-                self.activate_dag()
-            for i, v in self.dags:
-                raise Exception("Not Implemented")
     
-class TaskDag:
-    def __init__(self, tasks):
+class TaskDag(object):
+    def __init__(self, dag_id, tasks):
         self.tasks = tasks
         self.state = PENDING
+        for t in self.tasks:
+            self.tasks[t].dag_id = dag_id
 
     def get_tasks(self, states=None, limit=0):
         if states is None:
             states = [RUNNING]
         out = []
-        for i, k in self.dags.items():
-            if self.dag_state[i] in states:
+        for i, k in self.tasks.items():
+            if k.state in states:
                 out.append(k)
             if limit > 0 and len(out) >= limit:
                 break
         return out
 
-        
-
-
-class TaskNode:
-    def __init__(self):
+class TaskNode(object):
+    def __init__(self, task_id):
+        self.task_id = task_id
         self.state = PENDING
+        self.dag_id = None
+        self.priority = 0.0
+        self.time = time.time()
 
     def requires(self):
         return []
-
+    
+    def is_ready(self):
+        for r in self.requires():
+            if not self.is_ready():
+                return False
+        return True
 
 class CommandLine(TaskNode):
     def __init__(self, name, inputs):
+        super(CommandLine,self).__init__()
         self.name = name
         self.inputs = inputs
 
 class GalaxyWorkflow(TaskNode):
-    def __init__(self, name, inputs):
-        self.name = name
+    def __init__(self, task_id, inputs):
+        super(GalaxyWorkflow,self).__init__(task_id)
         self.inputs = inputs
     
     def environment(self):

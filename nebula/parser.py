@@ -1,5 +1,6 @@
 
 from dag import GalaxyWorkflow, CommandLine, TaskDag, DagSet
+from exceptions import CompileException
 from scheduler import Scheduler
 import os
 
@@ -66,7 +67,7 @@ class NebulaCompile:
 
         out = DagSet()
         for i in set(dag_map.values()):
-            d = TaskDag( dict([ (k,v) for k, v in self.target_map.items() if dag_map[k] == i ]) )
+            d = TaskDag( i, dict([ (k,v) for k, v in self.target_map.items() if dag_map[k] == i ]) )
             out.append(d)
 
         return out

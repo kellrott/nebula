@@ -11,71 +11,71 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import time
+import logging
+
+from dag import READY, PENDING, RUNNING
 
 class Scheduler:
 
     def __init__(self, compiler, config):
+        logging.debug("Initializing Scheduler")
         self.compiler = compiler
         self.config = config
         self.state = 'starting'
         self.queued_jobs = []
         self.active_targets = {}
         self.workers = {}
-        self.tasks = {}
         self.dags = compiler.to_dags()
+        self.tasks = []
 
     def done(self):
         return self.state == 'done'
+    
+    def activate_tasks(self, max_dags=1):
+        ready_tasks = self.dags.get_tasks([READY], 1)
+        if len(ready_tasks):
+            self.tasks += ready_tasks
+            return
+        logging.debug("Activating new tasks")
+        
+        pending_tasks = self.dags.get_tasks([PENDING])
+        logging.debug("Found %s pending tasks" % (len(pending_tasks)))
 
-
+        dag_set = {}
+        for task in pending_tasks:
+            if task.is_ready():
+                if max_dags == 0 or len(dag_set) < max_dags or task.dag_id in dag_set:
+                    logging.debug("Activating Task %s" % (task.task_id))
+                    task.state = READY
+                    ready_tasks.append(task)
+                    dag_set[task.dag_id] = True
+        self.tasks += ready_tasks
+        
     def get_work(self, worker, host=None):
         self.workers.update({'host': host})
         best_t = float('inf')
         best_priority = float('-inf')
         best_task = None
-        locally_pending_tasks = 0
+        locally_ready_tasks = 0
         running_tasks = []
+
+        if len([a for a in self.tasks if a.state == READY]) <= 0:
+            self.activate_tasks()
         
-        if len(self.tasks) <= 0:
-            self.dags.get_active_tasks()
-
-        for task_id, task in self._tasks.iteritems():
-            if worker not in task.workers:
+        for task in self.tasks:
+            if task.state == RUNNING:
+                running_tasks.append(task.task_id)
+            if task.state != READY:
                 continue
-
-            if task.status == RUNNING:
-                # Return a list of currently running tasks to the client,
-                # makes it easier to troubleshoot
-                other_worker = self._active_workers[task.worker_running]
-                more_info = {'task_id': task_id, 'worker': str(other_worker)}
-                if other_worker is not None:
-                    more_info.update(other_worker.info)
-                running_tasks.append(more_info)
-
-            if task.status != PENDING:
-                continue
-
-            locally_pending_tasks += 1
-            ok = True
-            for dep in task.deps:
-                if dep not in self._tasks:
-                    ok = False
-                elif self._tasks[dep].status != DONE:
-                    ok = False
-
-            if ok:
-                if (-task.priority, task.time) < (-best_priority, best_t):
-                    best_t = task.time
-                    best_priority = task.priority
-                    best_task = task_id
-
+            locally_ready_tasks += 1
+            if (-task.priority, task.time) < (-best_priority, best_t):
+                best_t = task.time
+                best_priority = task.priority
+                best_task = task
         if best_task:
-            t = self._tasks[best_task]
-            t.status = RUNNING
-            t.worker_running = worker
-            t.time_running = time.time()
-            self._update_task_history(best_task, RUNNING, host=host)
+            best_task.state = RUNNING
+            best_task.worker_running = worker
+            best_task.time_running = time.time()
 
-        return {'n_pending_tasks': locally_pending_tasks,
-                'task_id': best_task,
-                'running_tasks': running_tasks}
+        return best_task
