@@ -28,11 +28,11 @@ UNKNOWN = 'UNKNOWN'
 class DagSet:
     def __init__(self):
         self.dags = {}
-    
+
     def append(self, dag):
         dag_id = len(self.dags)
         self.dags[dag_id] = dag
-    
+
     def get_tasks(self, states=None, limit=0):
         if states is None:
             states = [RUNNING]
@@ -58,7 +58,7 @@ class DagSet:
             if limit > 0 and len(out) >= limit:
                 break
         return out
-    
+
 class TaskDag(object):
     def __init__(self, dag_id, tasks):
         self.tasks = tasks
@@ -76,12 +76,12 @@ class TaskDag(object):
             if limit > 0 and len(out) >= limit:
                 break
         return out
-    
+
     def __str__(self):
         return "[%s]" % (",".join(str(a) for a in self.tasks.values()))
-        
+
 class TargetFile(object):
-    
+
     def __init__(self, path):
         self.path = path
 
@@ -92,28 +92,36 @@ class TaskNode(object):
         self.dag_id = None
         self.priority = 0.0
         self.time = time.time()
-        
+
         self.inputs = {}
         self.params = {}
 
         if isinstance(inputs, TaskNode):
             self.inputs[None] = inputs
-        else:        
-            for k, v in inputs.items():
-                if isinstance(v, TargetFile):
-                    self.inputs[i]
-    
+        else:
+            if isinstance(inputs, list):
+                ilist = inputs
+            else:
+                ilist = [inputs]
+            for iset in ilist:
+                for k, v in iset.items():
+                    if isinstance(v, TargetFile):
+                        self.inputs[i]
+
     def __str__(self):
         return "%s(inputs:%s)" % (self.task_id, ",".join(a.task_id for a in self.requires()))
 
     def requires(self):
         return self.inputs.values()
-    
+
     def is_ready(self):
         for r in self.requires():
-            if not self.is_ready():
+            if not r.is_complete():
                 return False
         return True
+
+    def is_complete(self):
+        return self.state == DONE
 
 class CommandLine(TaskNode):
     def __init__(self, task_id, inputs):
@@ -128,6 +136,6 @@ class GalaxyWorkflow(TaskNode):
     def __init__(self, task_id, workflow_file, inputs):
         super(GalaxyWorkflow,self).__init__(task_id, inputs)
         self.workflow_file = os.path.abspath(workflow_file)
-    
+
     def environment(self):
         raise NotImplementedException()

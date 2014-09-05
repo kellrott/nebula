@@ -77,4 +77,5 @@ class WebSite:
         self.server.start()
 
     def stop(self):
+        logging.info("stopping website")
         self.server.stop()

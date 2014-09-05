@@ -24,11 +24,23 @@ class MesosDRMS(nebula.drms.DRMSWrapper):
 
     def start(self):
         logging.info("Starting Mesos Thread")
-        self.driver.run() #this doesn't return until stop is called by another thread
-    
+        self.driver_thread = DriverThread(self.driver)
+        self.driver_thread.start()
+
     def stop(self):
         logging.info("Stoping Mesos Thread")
-        self.driver.stop() 
+        self.driver_thread.stop()
+
+class DriverThread(threading.Thread):
+    def __init__(self, driver):
+        threading.Thread.__init__(self)
+        self.driver = driver
+
+    def run(self):
+        self.driver.run() #this doesn't return until stop is called by another thread
+
+    def stop(self):
+        self.driver.stop()
 
 class NebularMesos(mesos.Scheduler):
     """
@@ -43,7 +55,7 @@ class NebularMesos(mesos.Scheduler):
         self.master_url = "http://%s:%d" % (server, config.port)
         logging.info("Starting Mesos scheduler")
         logging.info("Mesos Resource URL %s" % (self.master_url))
-        
+
 
     def getExecutorInfo(self):
         """
@@ -111,9 +123,9 @@ class NebularMesos(mesos.Scheduler):
             for res in offer.resources:
                 if res.name == 'mem':
                     mem_count = int(res.scalar.value)
-            
+
             tasks = []
-            
+
             work = self.scheduler.get_work(offer.hostname)
             if work is not None:
                 logging.info("Starting work: %s" % (work))

@@ -1,8 +1,9 @@
 
+import os
+import traceback
 from dag import GalaxyWorkflow, CommandLine, FunctionCall, TaskDag, DagSet
 from exceptions import CompileException
 from scheduler import Scheduler
-import os
 
 class NebulaCompile:
     def __init__(self):
@@ -12,8 +13,12 @@ class NebulaCompile:
         def init(name, *args):
             if name in self.target_map:
                 raise CompileException("Duplicate Target Name: %s" % (name))
-            inst = cls(name, *args)
-            self.target_map[name] = inst
+            try:
+                inst = cls(name, *args)
+                self.target_map[name] = inst
+            except Exception:
+                traceback.print_exc()
+                raise Exception("Failed to init: %s" % (cls) )
             return inst
         return init
 
@@ -39,18 +44,18 @@ class NebulaCompile:
             return 1
         finally:
             os.chdir(old_cwd)
-    
+
     def to_dags(self):
         dag_map = {}
         for i, k in enumerate(self.target_map):
             dag_map[k] = i
-        
+
         #build target->depends edges
         edges = []
         for key, value in self.target_map.items():
             for r in value.requires():
                 edges.append( (key, r.task_id) )
-        
+
         change = True
         while change:
             change = False

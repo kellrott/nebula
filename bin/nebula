@@ -12,8 +12,9 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import argparse
 import os
+import time
+import argparse
 import logging
 
 
@@ -29,16 +30,21 @@ def main(args):
     build.compile(filename)
     sched = Scheduler(build, config)
     web = WebSite(sched, config)
-    
+
     if config.mesos is not None:
         import nebula.mesos_drms
         drms = nebula.mesos_drms.MesosDRMS(sched, config)
 
-    web.start()
     try:
+        web.start()
         drms.start()
+        while True:
+            time.sleep(5)
+    except KeyboardInterrupt:
+        pass
     finally:
         web.stop()
+        drms.stop()
 
 def describe(args):
     config = Config(mesos=args.mesos, port=args.port)
@@ -48,9 +54,9 @@ def describe(args):
         filename = os.path.join(os.path.abspath(args.builddir), "NebulaFile")
     build = NebulaCompile()
     build.compile(filename)
-    
+
     dags = build.to_dags()
-    
+
     for a in dags.dags.values():
         print a
 
@@ -63,7 +69,7 @@ if __name__ == "__main__":
     parser.add_argument("-t", "--tree", action="store_true", default=False)
     parser.add_argument("builddir", nargs="?", default=None)
     args = parser.parse_args()
-    
+
     if args.v:
         logging.basicConfig(level=logging.DEBUG)
         logging.info("Verbose logging")
