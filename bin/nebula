@@ -58,7 +58,7 @@ def describe(args):
     dags = build.to_dags()
 
     for a in dags.dags.values():
-        print a
+        print "DAG:", a
 
 
 if __name__ == "__main__":

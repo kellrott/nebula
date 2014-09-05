@@ -1,20 +1,22 @@
 
 import os
 import traceback
-from dag import GalaxyWorkflow, CommandLine, FunctionCall, TaskDag, DagSet
-from exceptions import CompileException
-from scheduler import Scheduler
+from nebula.dag import TaskDag, DagSet, TargetFile
+from nebula.exceptions import CompileException
+from nebula.scheduler import Scheduler
+import nebula.tasks
+
 
 class NebulaCompile:
     def __init__(self):
         self.target_map = {}
 
     def build_target(self, cls):
-        def init(name, *args):
+        def init(name, *args, **kwds):
             if name in self.target_map:
                 raise CompileException("Duplicate Target Name: %s" % (name))
             try:
-                inst = cls(name, *args)
+                inst = cls(name, *args, **kwds)
                 self.target_map[name] = inst
             except Exception:
                 traceback.print_exc()
@@ -28,10 +30,11 @@ class NebulaCompile:
             code = handle.read()
 
         global_env = {
-            'Workflow' : self.build_target(GalaxyWorkflow),
-            'CMDLine' : self.build_target(CommandLine),
-            'Python' : self.build_target(FunctionCall)
+            'TargetFile' : TargetFile
         }
+        
+        for k, v in nebula.tasks.__mapping__.items():
+            global_env[k] = self.build_target(v)
 
         local_env = {}
         my_code_AST = compile(code, "NebulaFile", "exec")
@@ -47,12 +50,19 @@ class NebulaCompile:
 
     def to_dags(self):
         dag_map = {}
-        for i, k in enumerate(self.target_map):
+        
+        all_targets = {}
+        for k, v in self.target_map.items():
+            all_targets[k] = v
+            for sk, sv in v.sub_targets().items():
+                all_targets[sk] = sv
+        
+        for i, k in enumerate(all_targets):
             dag_map[k] = i
 
         #build target->depends edges
         edges = []
-        for key, value in self.target_map.items():
+        for key, value in all_targets.items():
             for r in value.requires():
                 edges.append( (key, r.task_id) )
 

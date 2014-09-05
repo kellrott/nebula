@@ -16,7 +16,6 @@ import time
 
 from nebula.exceptions import NotImplementedException
 
-
 PENDING = 'PENDING'
 READY = 'READY'
 FAILED = 'FAILED'
@@ -95,24 +94,35 @@ class TaskNode(object):
 
         self.inputs = {}
         self.params = {}
-
-        if isinstance(inputs, TaskNode):
-            self.inputs[None] = inputs
+        
+        if inputs is None:
+            self.inputs = {}
         else:
-            if isinstance(inputs, list):
-                ilist = inputs
+            if isinstance(inputs, TaskNode):
+                self.inputs[None] = inputs
             else:
-                ilist = [inputs]
-            for iset in ilist:
-                for k, v in iset.items():
-                    if isinstance(v, TargetFile):
-                        self.inputs[i]
+                if isinstance(inputs, list):
+                    ilist = inputs
+                else:
+                    ilist = [inputs]
+                for iset in ilist:
+                    if isinstance(iset, TaskNode):
+                        #for k, v in iset.outputs():
+                        #    self.inputs
+                        print "Do Something here"
+                    else:
+                        for k, v in iset.items():
+                            if isinstance(v, TargetFile):
+                                self.inputs[i]
 
     def __str__(self):
         return "%s(inputs:%s)" % (self.task_id, ",".join(a.task_id for a in self.requires()))
 
     def requires(self):
         return self.inputs.values()
+    
+    def sub_targets(self):
+        return {}
 
     def is_ready(self):
         for r in self.requires():
@@ -122,20 +132,3 @@ class TaskNode(object):
 
     def is_complete(self):
         return self.state == DONE
-
-class CommandLine(TaskNode):
-    def __init__(self, task_id, inputs):
-        super(CommandLine,self).__init__(task_id, inputs)
-
-class FunctionCall(TaskNode):
-    def __init__(self, task_id, function, inputs):
-        super(FunctionCall,self).__init__(task_id, inputs)
-        self.function = function
-
-class GalaxyWorkflow(TaskNode):
-    def __init__(self, task_id, workflow_file, inputs):
-        super(GalaxyWorkflow,self).__init__(task_id, inputs)
-        self.workflow_file = os.path.abspath(workflow_file)
-
-    def environment(self):
-        raise NotImplementedException()
