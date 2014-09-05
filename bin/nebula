@@ -40,11 +40,27 @@ def main(args):
     finally:
         web.stop()
 
+def describe(args):
+    config = Config(mesos=args.mesos, port=args.port)
+    if args.builddir is None:
+        filename = os.path.abspath("NebulaFile")
+    else:
+        filename = os.path.join(os.path.abspath(args.builddir), "NebulaFile")
+    build = NebulaCompile()
+    build.compile(filename)
+    
+    dags = build.to_dags()
+    
+    for a in dags.dags.values():
+        print a
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--mesos", default="127.0.0.1:5050")
     parser.add_argument("--port", type=int, default=9999)
     parser.add_argument("-v", action="store_true", default=False)
+    parser.add_argument("-t", "--tree", action="store_true", default=False)
     parser.add_argument("builddir", nargs="?", default=None)
     args = parser.parse_args()
     
@@ -54,4 +70,7 @@ if __name__ == "__main__":
     else:
         logging.basicConfig(level=logging.INFO)
 
-    main(args)
+    if args.tree:
+        describe(args)
+    else:
+        main(args)

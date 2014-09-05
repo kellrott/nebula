@@ -11,7 +11,9 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import os
 import time
+
 from nebula.exceptions import NotImplementedException
 
 
@@ -74,17 +76,38 @@ class TaskDag(object):
             if limit > 0 and len(out) >= limit:
                 break
         return out
+    
+    def __str__(self):
+        return "[%s]" % (",".join(str(a) for a in self.tasks.values()))
+        
+class TargetFile(object):
+    
+    def __init__(self, path):
+        self.path = path
 
 class TaskNode(object):
-    def __init__(self, task_id):
+    def __init__(self, task_id, inputs):
         self.task_id = task_id
         self.state = PENDING
         self.dag_id = None
         self.priority = 0.0
         self.time = time.time()
+        
+        self.inputs = {}
+        self.params = {}
+
+        if isinstance(inputs, TaskNode):
+            self.inputs[None] = inputs
+        else:        
+            for k, v in inputs.items():
+                if isinstance(v, TargetFile):
+                    self.inputs[i]
+    
+    def __str__(self):
+        return "%s(inputs:%s)" % (self.task_id, ",".join(a.task_id for a in self.requires()))
 
     def requires(self):
-        return []
+        return self.inputs.values()
     
     def is_ready(self):
         for r in self.requires():
@@ -94,20 +117,17 @@ class TaskNode(object):
 
 class CommandLine(TaskNode):
     def __init__(self, task_id, inputs):
-        super(CommandLine,self).__init__(task_id)
-        self.inputs = inputs
+        super(CommandLine,self).__init__(task_id, inputs)
 
 class FunctionCall(TaskNode):
     def __init__(self, task_id, function, inputs):
-        super(FunctionCall,self).__init__(task_id)
-        self.inputs = inputs
+        super(FunctionCall,self).__init__(task_id, inputs)
         self.function = function
 
-
 class GalaxyWorkflow(TaskNode):
-    def __init__(self, task_id, inputs):
-        super(GalaxyWorkflow,self).__init__(task_id)
-        self.inputs = inputs
+    def __init__(self, task_id, workflow_file, inputs):
+        super(GalaxyWorkflow,self).__init__(task_id, inputs)
+        self.workflow_file = os.path.abspath(workflow_file)
     
     def environment(self):
         raise NotImplementedException()

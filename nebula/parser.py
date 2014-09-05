@@ -23,9 +23,9 @@ class NebulaCompile:
             code = handle.read()
 
         global_env = {
-            'workflow' : self.build_target(GalaxyWorkflow),
-            'cmdline' : self.build_target(CommandLine),
-            'function' : self.build_target(FunctionCall)
+            'Workflow' : self.build_target(GalaxyWorkflow),
+            'CMDLine' : self.build_target(CommandLine),
+            'Python' : self.build_target(FunctionCall)
         }
 
         local_env = {}
@@ -41,7 +41,6 @@ class NebulaCompile:
             os.chdir(old_cwd)
     
     def to_dags(self):
-        
         dag_map = {}
         for i, k in enumerate(self.target_map):
             dag_map[k] = i
@@ -50,21 +49,23 @@ class NebulaCompile:
         edges = []
         for key, value in self.target_map.items():
             for r in value.requires():
-                edges.append( (key, r) )
+                edges.append( (key, r.task_id) )
         
         change = True
         while change:
             change = False
             #find nodes that are connected but part of different DAG sets
-            for t, r in edges:
-                if dag_map[t] != dag_map[r]:
+            for dst, src in edges:
+                if dag_map[src] != dag_map[dst]:
                     change = True
+                    new_color = dag_map[src]
+                    old_color = dag_map[dst]
                     cset = []
-                    for c, d in dag_map.items():
-                        if d == t:
-                            cset.append(c)
-                    for c in cset:
-                        dag_map[c] = dag_map[r]
+                    for node, color in dag_map.items():
+                        if color == old_color:
+                            cset.append(node)
+                    for node in cset:
+                        dag_map[node] = new_color
 
         out = DagSet()
         for i in set(dag_map.values()):
