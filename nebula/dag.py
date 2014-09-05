@@ -93,10 +93,16 @@ class TaskNode(object):
         return True
 
 class CommandLine(TaskNode):
-    def __init__(self, name, inputs):
-        super(CommandLine,self).__init__()
-        self.name = name
+    def __init__(self, task_id, inputs):
+        super(CommandLine,self).__init__(task_id)
         self.inputs = inputs
+
+class FunctionCall(TaskNode):
+    def __init__(self, task_id, function, inputs):
+        super(FunctionCall,self).__init__(task_id)
+        self.inputs = inputs
+        self.function = function
+
 
 class GalaxyWorkflow(TaskNode):
     def __init__(self, task_id, inputs):

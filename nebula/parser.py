@@ -1,5 +1,5 @@
 
-from dag import GalaxyWorkflow, CommandLine, TaskDag, DagSet
+from dag import GalaxyWorkflow, CommandLine, FunctionCall, TaskDag, DagSet
 from exceptions import CompileException
 from scheduler import Scheduler
 import os
@@ -24,7 +24,8 @@ class NebulaCompile:
 
         global_env = {
             'workflow' : self.build_target(GalaxyWorkflow),
-            'cmdline' : self.build_target(CommandLine)
+            'cmdline' : self.build_target(CommandLine),
+            'function' : self.build_target(FunctionCall)
         }
 
         local_env = {}
