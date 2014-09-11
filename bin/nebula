@@ -55,9 +55,9 @@ def describe(args):
     build = NebulaCompile()
     build.compile(filename)
 
-    dags = build.to_dags()
+    dagset = build.to_dags()
 
-    for a in dags.dags.values():
+    for a in dagset.dags.values():
         print "DAG:", a
 
 

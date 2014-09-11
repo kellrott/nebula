@@ -62,6 +62,7 @@ class TaskDag(object):
     def __init__(self, dag_id, tasks):
         self.tasks = tasks
         self.state = PENDING
+        self.src_path = None
         for t in self.tasks:
             self.tasks[t].dag_id = dag_id
 
@@ -83,18 +84,26 @@ class TargetFile(object):
 
     def __init__(self, path):
         self.path = path
+        self.parent_task = None
 
 class TaskNode(object):
-    def __init__(self, task_id, inputs):
+    def __init__(self, task_id, inputs, outputs):
         self.task_id = task_id
         self.state = PENDING
         self.dag_id = None
         self.priority = 0.0
         self.time = time.time()
 
-        self.inputs = {}
         self.params = {}
+        self.inputs = {}
+        self.input_tasks = {}
+        if inputs is not None:
+            self.init_inputs(inputs)
+        self.outputs = {}
+        if outputs is not None:
+            self.init_outputs(outputs)
         
+    def init_inputs(self, inputs):
         if inputs is None:
             self.inputs = {}
         else:
@@ -107,19 +116,59 @@ class TaskNode(object):
                     ilist = [inputs]
                 for iset in ilist:
                     if isinstance(iset, TaskNode):
-                        #for k, v in iset.outputs():
-                        #    self.inputs
-                        print "Do Something here"
+                        for k, v in iset.get_outputs().items():
+                            self.inputs[k] = v
                     else:
                         for k, v in iset.items():
                             if isinstance(v, TargetFile):
-                                self.inputs[i]
+                                self.inputs[k] = v
+
+    def init_outputs(self, outputs):
+        if outputs is None:
+            self.outputs = {}
+        else:
+            if isinstance(outputs, TargetFile):
+                outputs.parent_task = self
+                self.outputs[None] = outputs
+            else:
+                if isinstance(outputs, list) or isinstance(outputs, set):
+                    olist = outputs
+                else:
+                    olist = [outputs]
+                for oset in olist:
+                    if isinstance(oset, TaskNode):
+                        for k, v in oset.get_outputs():
+                            self.outputs[k] = v
+                    else:
+                        for k, v in oset.items():
+                            if isinstance(v, TargetFile):
+                                v.parent_task = self
+                                self.outputs[k] = v
+                            elif isinstance(v, TaskNode):
+                                for k2, v2 in v.get_outputs().items():
+                                    self.outputs[k2] = v2
 
     def __str__(self):
-        return "%s(inputs:%s)" % (self.task_id, ",".join(a.task_id for a in self.requires()))
+        return "%s(inputs:%s)" % (self.task_id, ",".join(str(a) for a in self.get_inputs().values()))
 
+    #def requires(self):
+    #    return self.inputs.values()
+    
+    def get_inputs(self):
+        return self.inputs
+    
+    def get_outputs(self):
+        return self.outputs
+    
     def requires(self):
-        return self.inputs.values()
+        out = {}
+        for a in self.get_inputs().values():
+            out[a.parent_task.task_id] = a.parent_task
+        return out.values() 
+    
+    def is_active_task(self):
+        "This task node actually does work. NebulaFile tasks carry subtasks, but don't actually do work themselves"
+        return True
     
     def sub_targets(self):
         return {}

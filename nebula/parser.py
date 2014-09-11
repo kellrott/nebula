@@ -1,7 +1,7 @@
 
 import os
 import traceback
-from nebula.dag import TaskDag, DagSet, TargetFile
+from nebula.dag import TaskDag, TaskNode, DagSet, TargetFile
 from nebula.exceptions import CompileException
 from nebula.scheduler import Scheduler
 import nebula.tasks
@@ -11,7 +11,7 @@ class NebulaCompile:
     def __init__(self):
         self.target_map = {}
 
-    def build_target(self, cls):
+    def build_task(self, cls):
         def init(name, *args, **kwds):
             if name in self.target_map:
                 raise CompileException("Duplicate Target Name: %s" % (name))
@@ -24,7 +24,9 @@ class NebulaCompile:
             return inst
         return init
 
+
     def compile(self, path):
+        self.src_path = path
         basedir = os.path.dirname(path)
         with open(path) as handle:
             code = handle.read()
@@ -34,7 +36,7 @@ class NebulaCompile:
         }
         
         for k, v in nebula.tasks.__mapping__.items():
-            global_env[k] = self.build_target(v)
+            global_env[k] = self.build_task(v)
 
         local_env = {}
         my_code_AST = compile(code, "NebulaFile", "exec")
@@ -43,12 +45,14 @@ class NebulaCompile:
             os.chdir(basedir)
             exec(my_code_AST, global_env, local_env)
         except CompileException, e:
+            os.chdir(old_cwd)
             sys.stderr.write("Failure in Compile:" + e.msg + "\n")
             return 1
         finally:
             os.chdir(old_cwd)
 
     def to_dags(self):
+        #dag_map maps item node to its dag set
         dag_map = {}
         
         all_targets = {}
@@ -63,8 +67,11 @@ class NebulaCompile:
         #build target->depends edges
         edges = []
         for key, value in all_targets.items():
-            for r in value.requires():
-                edges.append( (key, r.task_id) )
+            for name, element in value.get_inputs().items():
+                if isinstance(element, TaskNode):
+                    edges.append( (key, element.task_id) )
+                if isinstance(element, TargetFile) and element.parent_task is not None:
+                    edges.append( (key, element.parent_task.task_id) )
 
         change = True
         while change:
@@ -81,10 +88,11 @@ class NebulaCompile:
                             cset.append(node)
                     for node in cset:
                         dag_map[node] = new_color
-
         out = DagSet()
         for i in set(dag_map.values()):
-            d = TaskDag( i, dict([ (k,v) for k, v in self.target_map.items() if dag_map[k] == i ]) )
-            out.append(d)
+            item_set = dict([ (k,v) for k, v in all_targets.items() if dag_map[k] == i ]) 
+            if any( all_targets[t].is_active_task() for t in item_set ):
+                d = TaskDag( i, item_set)
+                out.append(d)
 
         return out
