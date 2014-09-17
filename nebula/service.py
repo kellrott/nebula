@@ -1,4 +1,5 @@
 
+
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not
 # use this file except in compliance with the License. You may obtain a copy of
 # the License at
@@ -12,21 +13,16 @@
 # the License.
 
 import os
-import sys
-import time
-import argparse
-import logging
-import hashlib
-import uuid
 
 
-from parser import NebulaCompile
-from scheduler import Scheduler
-from website import WebSite
-from workrepo import WorkRepo
+class Service(object):
+    def __init__(self, name):
+        self.name = name
 
-class Config:
-    def __init__(self, mesos=None, port=9999, host='localhost'):
-        self.mesos = mesos
-        self.port = port
-        self.host = host
+class Docker(Service):    
+    def __init__(self, path, name=None):
+        path = os.path.abspath(path)
+        if name is None:
+            name = os.path.basename(path)
+        self.path = path
+        super(Docker, self).__init__(name)

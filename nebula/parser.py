@@ -4,6 +4,7 @@ import traceback
 from nebula.dag import TaskDag, TaskNode, DagSet, TargetFile
 from nebula.exceptions import CompileException
 from nebula.scheduler import Scheduler
+from nebula.service import Docker
 import nebula.tasks
 
 
@@ -23,17 +24,21 @@ class NebulaCompile:
                 raise Exception("Failed to init: %s" % (cls) )
             return inst
         return init
-
-
-    def compile(self, path):
+    
+    def compile(self, path, additional_vars=None):
         self.src_path = path
         basedir = os.path.dirname(path)
         with open(path) as handle:
             code = handle.read()
 
         global_env = {
-            'TargetFile' : TargetFile
+            'TargetFile' : TargetFile,
+            'Docker' : Docker
         }
+        
+        if additional_vars is not None:
+            for k,v in additional_vars.items():
+                global_env[k] = v
         
         for k, v in nebula.tasks.__mapping__.items():
             global_env[k] = self.build_task(v)

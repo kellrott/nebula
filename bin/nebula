@@ -19,7 +19,7 @@ import logging
 import socket
 
 
-from nebula import NebulaCompile, Scheduler, Config, WebSite
+from nebula import NebulaCompile, Scheduler, Config, WebSite, WorkRepo
 
 def main(args):
     config = Config(mesos=args.mesos, port=args.port, host=args.server)
@@ -27,10 +27,11 @@ def main(args):
     build.compile(args.buildfile)
     sched = Scheduler(build, config)
     web = WebSite(sched, config)
+    workrepo = WorkRepo(os.path.join(os.path.dirname(args.buildfile), ".nebula"))
 
     if config.mesos is not None:
         import nebula.mesos_drms
-        drms = nebula.mesos_drms.MesosDRMS(sched, config)
+        drms = nebula.mesos_drms.MesosDRMS(sched, workrepo, config)
 
     try:
         web.start()

@@ -22,13 +22,13 @@ import nebula.drms
 
 class MesosDRMS(nebula.drms.DRMSWrapper):
 
-    def __init__(self, scheduler, config):
-        super(MesosDRMS, self).__init__(scheduler, config)
+    def __init__(self, scheduler, workrepo, config):
+        super(MesosDRMS, self).__init__(scheduler, workrepo, config)
 
         if self.config.mesos is None:
             logging.error("Mesos not configured")
             return
-        self.sched = NebularMesos(scheduler, config)
+        self.sched = NebularMesos(scheduler, workrepo, config)
         self.framework = mesos_pb2.FrameworkInfo()
         self.framework.user = "" # Have Mesos fill in the current user.
         self.framework.name = "Nebula"
@@ -59,10 +59,11 @@ class NebularMesos(mesos.Scheduler):
     """
     The GridScheduler is responsible for deploying and managing child Galaxy instances using Mesos
     """
-    def __init__(self, scheduler, config):
+    def __init__(self, scheduler, workrepo, config):
         mesos.Scheduler.__init__(self)
         self.scheduler = scheduler
         self.config = config
+        self.workrepo = workrepo
         self.hosts = {}
         self.master_url = "http://%s:%d" % (self.config.host, self.config.port)
         logging.info("Starting Mesos scheduler")
@@ -97,7 +98,7 @@ class NebularMesos(mesos.Scheduler):
         task.name = "Nebula Worker"
         task.executor.MergeFrom(self.getExecutorInfo(request))
 
-        task_data = request.get_task_data()
+        task_data = request.get_task_data(self.workrepo)
         task.data = json.dumps(task_data)
 
         cpus = task.resources.add()
@@ -134,18 +135,18 @@ class NebularMesos(mesos.Scheduler):
 
             tasks = []
 
-            if offer.hostname not in self.hosts:
-                work = self.scheduler.get_work(offer.hostname)
-                if work is not None:
-                    logging.info("Starting work: %s" % (work))
-                    logging.debug("Offered %d cpus" % (cpu_count))
-                    cpu_request = 0
-                    cpu_slice = 1
-                    mem_slice = 1024
-                    task = self.getTaskInfo(offer, work, cpu_slice, mem_slice)
-                    cpu_request += cpu_slice
-                    tasks.append(task)
-                    self.hosts[offer.hostname] = self.hosts.get(offer.hostname, 0) + cpu_slice
+            work = self.scheduler.get_work(offer.hostname)
+            if work is not None:
+                logging.info("Starting work: %s" % (work))
+                logging.debug("Offered %d cpus" % (cpu_count))
+                cpu_request = 0
+                cpu_slice = 1
+                mem_slice = 1024
+                task = self.getTaskInfo(offer, work, cpu_slice, mem_slice)
+                cpu_request += cpu_slice
+                tasks.append(task)
+                self.hosts[offer.hostname] = self.hosts.get(offer.hostname, 0) + cpu_slice
+
             status = driver.launchTasks(offer.id, tasks)
 
 
