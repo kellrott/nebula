@@ -26,6 +26,7 @@ from website import WebSite
 
 
 class Config:
-    def __init__(self, mesos=None, port=9999):
+    def __init__(self, mesos=None, port=9999, host='localhost'):
         self.mesos = mesos
         self.port = port
+        self.host = host

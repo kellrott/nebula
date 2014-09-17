@@ -1,4 +1,17 @@
 
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+import json
 import logging
 import threading
 
@@ -51,45 +64,40 @@ class NebularMesos(mesos.Scheduler):
         self.scheduler = scheduler
         self.config = config
         self.hosts = {}
-        server = "localhost"
-        self.master_url = "http://%s:%d" % (server, config.port)
+        self.master_url = "http://%s:%d" % (self.config.host, self.config.port)
         logging.info("Starting Mesos scheduler")
         logging.info("Mesos Resource URL %s" % (self.master_url))
 
 
-    def getExecutorInfo(self):
+    def getExecutorInfo(self, request):
         """
         Build an executor request structure
         """
 
-        uri_value = "http://localhost:8080/static/galaxy_farm_worker.py" #bug, need to correctly form this URI
-
+        uri_value = "%s/resources/nebula_executor.py" % (self.master_url)
         logging.info("in getExecutorInfo, setting execPath = " + uri_value)
         executor = mesos_pb2.ExecutorInfo()
-        executor.executor_id.value = "galaxy_farm_worker"
+        executor.executor_id.value = "nebula_worker"
 
         uri = executor.command.uris.add()
         uri.value = uri_value
         uri.executable = True
 
-        executor.command.value = "./galaxy_farm_worker.py"
-        executor.name = "galaxy_farm_worker"
-        executor.source = "galaxy_farm"
+        executor.command.value = "./nebula_executor.py"
+        executor.name = "nebula_worker"
+        executor.source = "nebula_farm"
         return executor
 
-    def getTaskInfo(self, offer, task_name, worker_image, accept_cpu, accept_mem):
+    def getTaskInfo(self, offer, request, accept_cpu, accept_mem):
+
+        task_name = "nebula_worker:%s:%s" % (request.task_id, offer.hostname)
         task = mesos_pb2.TaskInfo()
         task.task_id.value = task_name
         task.slave_id.value = offer.slave_id.value
-        task.name = "Galaxy Worker"
-        task.executor.MergeFrom(self.getExecutorInfo())
+        task.name = "Nebula Worker"
+        task.executor.MergeFrom(self.getExecutorInfo(request))
 
-        task_data = {
-            'galaxy_tarball' : 'http://localhost:8080/static/workers/%s.tar.gz' % (worker_image),
-            'galaxy_name' : worker_image,
-            'galaxy_master' : self.master_url,
-            'galaxy_farm_key' : ""
-        }
+        task_data = request.get_task_data()
         task.data = json.dumps(task_data)
 
         cpus = task.resources.add()
@@ -105,7 +113,7 @@ class NebularMesos(mesos.Scheduler):
 
 
     def registered(self, driver, fid, masterInfo):
-        logging.info("Galaxy Grid registered with frameworkID %s" % fid.value)
+        logging.info("Nebula registered with frameworkID %s" % fid.value)
 
     def resourceOffers(self, driver, offers):
         logging.debug("Got %s slot offers" % len(offers))
@@ -126,24 +134,18 @@ class NebularMesos(mesos.Scheduler):
 
             tasks = []
 
-            work = self.scheduler.get_work(offer.hostname)
-            if work is not None:
-                logging.info("Starting work: %s" % (work))
-            """
-            self.comm.setComputeResourceInfo( ComputeResource(offer.hostname, cpu_count, mem_count) )
             if offer.hostname not in self.hosts:
-                farm_request = wq.get_farm_request()
-                if farm_request is not None:
+                work = self.scheduler.get_work(offer.hostname)
+                if work is not None:
+                    logging.info("Starting work: %s" % (work))
                     logging.debug("Offered %d cpus" % (cpu_count))
                     cpu_request = 0
                     cpu_slice = 1
                     mem_slice = 1024
-                    task_name = "galaxy_worker:%s:%s" % (farm_request.batch.id, offer.hostname)
-                    task = self.getTaskInfo(offer, task_name, farm_request.batch.worker_image, cpu_slice, mem_slice)
+                    task = self.getTaskInfo(offer, work, cpu_slice, mem_slice)
                     cpu_request += cpu_slice
                     tasks.append(task)
                     self.hosts[offer.hostname] = self.hosts.get(offer.hostname, 0) + cpu_slice
-            """
             status = driver.launchTasks(offer.id, tasks)
 
 

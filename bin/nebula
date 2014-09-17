@@ -16,18 +16,15 @@ import os
 import time
 import argparse
 import logging
+import socket
 
 
 from nebula import NebulaCompile, Scheduler, Config, WebSite
 
 def main(args):
-    config = Config(mesos=args.mesos, port=args.port)
-    if args.builddir is None:
-        filename = os.path.abspath("NebulaFile")
-    else:
-        filename = os.path.join(os.path.abspath(args.builddir), "NebulaFile")
+    config = Config(mesos=args.mesos, port=args.port, host=args.server)
     build = NebulaCompile()
-    build.compile(filename)
+    build.compile(args.buildfile)
     sched = Scheduler(build, config)
     web = WebSite(sched, config)
 
@@ -47,13 +44,9 @@ def main(args):
         drms.stop()
 
 def describe(args):
-    config = Config(mesos=args.mesos, port=args.port)
-    if args.builddir is None:
-        filename = os.path.abspath("NebulaFile")
-    else:
-        filename = os.path.join(os.path.abspath(args.builddir), "NebulaFile")
+    config = Config(mesos=args.mesos, port=args.port, host=args.server)
     build = NebulaCompile()
-    build.compile(filename)
+    build.compile(args.buildfile)
 
     dagset = build.to_dags()
 
@@ -67,8 +60,18 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=9999)
     parser.add_argument("-v", action="store_true", default=False)
     parser.add_argument("-t", "--tree", action="store_true", default=False)
+    parser.add_argument("-s", "--server", default=None)
+
     parser.add_argument("builddir", nargs="?", default=None)
     args = parser.parse_args()
+
+    if args.builddir is None:
+        args.buildfile = os.path.abspath("NebulaFile")
+    else:
+        args.buildfile = os.path.join(os.path.abspath(args.builddir), "NebulaFile")
+
+    if args.server is None:
+        args.server = socket.gethostname()
 
     if args.v:
         logging.basicConfig(level=logging.DEBUG)

@@ -9,7 +9,7 @@ class DRMSWrapper(object):
 
     def start(self):
         raise NotImplementedException()
-        
+
     def worker_requests_active():
         return not self.schedular.done()
 
@@ -17,5 +17,4 @@ class DRMSWrapper(object):
         raise NotImplementedException()
 
     def stop(self):
-
         raise NotImplementedException()
