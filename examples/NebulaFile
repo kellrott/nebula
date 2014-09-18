@@ -1,8 +1,10 @@
 
-from glob import glob
-import os
+fasta_files = [
+"http://www.uniprot.org/uniprot/Q3B891.fasta",
+"http://www.uniprot.org/uniprot/P04637.fasta"
+]
 
-a = glob("jobs/*")
+curl_docker = Docker("curl_docker")
 
-for i in a:
-    w = workflow(os.path.basename(i), {})
+for i, a in enumerate(fasta_files):
+    Shell("fasta_%s" % i, "curl %s > out.seq" % a, inputs=None, outputs={'fasta_file' : TargetFile("out.seq")}, docker=curl_docker)

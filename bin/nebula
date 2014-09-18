@@ -25,9 +25,9 @@ def main(args):
     config = Config(mesos=args.mesos, port=args.port, host=args.server)
     build = NebulaCompile()
     build.compile(args.buildfile)
-    sched = Scheduler(build, config)
-    web = WebSite(sched, config)
     workrepo = WorkRepo(os.path.join(os.path.dirname(args.buildfile), ".nebula"))
+    sched = Scheduler(build.to_dags(), workrepo, config)
+    web = WebSite(sched, config)
 
     if config.mesos is not None:
         import nebula.mesos_drms

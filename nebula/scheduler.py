@@ -18,15 +18,15 @@ from dag import READY, PENDING, RUNNING
 
 class Scheduler:
 
-    def __init__(self, compiler, config):
+    def __init__(self, dags, workrepo, config):
         logging.debug("Initializing Scheduler")
-        self.compiler = compiler
+        self.workrepo = workrepo
         self.config = config
         self.state = 'starting'
         self.queued_jobs = []
         self.active_targets = {}
         self.workers = {}
-        self.dags = compiler.to_dags()
+        self.dags = dags
         self.tasks = []
 
     def done(self):
@@ -46,10 +46,14 @@ class Scheduler:
         for task in pending_tasks:
             if task.is_ready():
                 if max_dags == 0 or len(dag_set) < max_dags or task.dag_id in dag_set:
-                    logging.debug("Activating Task %s" % (task.task_id))
-                    task.state = READY
-                    ready_tasks.append(task)
-                    dag_set[task.dag_id] = True
+                    record = self.workrepo.get_jobrecord()
+                    if record is None or not record.match_inputs(task.get_inputs()):
+                        logging.debug("Activating Task %s" % (task.task_id))
+                        task.state = READY
+                        ready_tasks.append(task)
+                        dag_set[task.dag_id] = True
+                    else:
+                        logging.debug("Using stored task %s" % (task.task_id))
         self.tasks += ready_tasks
         
     def get_work(self, worker, host=None):

@@ -17,6 +17,7 @@ import json
 import tarfile
 
 IMAGE_DIR = "images"
+JOB_DIR = "jobs"
 
 class WorkRepo:
     
@@ -41,3 +42,13 @@ class WorkRepo:
     
     def get_dockerimage_path(self, name):
         return os.path.join(self.basedir, IMAGE_DIR, name + ".tar")
+    
+    
+    def get_jobrecord(self, name):
+        path = os.path.join(self.basedir, JOB_DIR, name + ".json")
+        if os.path.exists(path):
+            with open(path) as handle:
+                txt = handle.read()
+                data = json.loads(txt)
+                return JobRecord(data)
+        return None
