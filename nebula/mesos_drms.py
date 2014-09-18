@@ -91,7 +91,7 @@ class NebularMesos(mesos.Scheduler):
 
     def getTaskInfo(self, offer, request, accept_cpu, accept_mem):
 
-        task_name = "nebula_worker:%s:%s" % (request.task_id, offer.hostname)
+        task_name = "%s:%s" % (offer.hostname, request.task_id)
         task = mesos_pb2.TaskInfo()
         task.task_id.value = task_name
         task.slave_id.value = offer.slave_id.value
@@ -135,7 +135,7 @@ class NebularMesos(mesos.Scheduler):
 
             tasks = []
 
-            work = self.scheduler.get_work(offer.hostname)
+            work = self.scheduler.get_task(offer.hostname)
             if work is not None:
                 logging.info("Starting work: %s" % (work))
                 logging.debug("Offered %d cpus" % (cpu_count))
@@ -146,17 +146,21 @@ class NebularMesos(mesos.Scheduler):
                 cpu_request += cpu_slice
                 tasks.append(task)
                 self.hosts[offer.hostname] = self.hosts.get(offer.hostname, 0) + cpu_slice
-
             status = driver.launchTasks(offer.id, tasks)
 
 
     def statusUpdate(self, driver, status):
         if status.state == mesos_pb2.TASK_RUNNING:
             logging.info("Task %s, slave %s is RUNNING" % (status.task_id.value, status.slave_id.value))
+            print status.data
 
         if status.state == mesos_pb2.TASK_FINISHED:
             logging.info("Task %s, slave %s is FINISHED" % (status.task_id.value, status.slave_id.value))
+            self.scheduler.complete_task(status.data)
 
+        if status.state == mesos_pb2.TASK_FAILED:
+            logging.info("Task %s, slave %s is FAILED" % (status.task_id.value, status.slave_id.value))
+            print status.data
 
     def getFrameworkName(self, driver):
         return "GalaxyGrid"

@@ -27,6 +27,7 @@ class Shell(TaskNode):
                 cmd = "docker save %s > %s" % (self.docker.name, workrepo.get_dockerimage_path(self.docker.name))
                 subprocess.check_call(cmd, shell=True)
         return {
+            'task_id' : self.task_id,
             'task_type' : 'shell',
             'script' : self.script,
             'outputs' : dict( (k, v.path) for k,v in self.outputs.items()),

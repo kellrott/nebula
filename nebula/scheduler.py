@@ -14,7 +14,8 @@
 import time
 import logging
 
-from dag import READY, PENDING, RUNNING
+from nebula.dag import READY, PENDING, RUNNING, DONE
+from nebula.jobrecord import JobRecord
 
 class Scheduler:
 
@@ -24,10 +25,9 @@ class Scheduler:
         self.config = config
         self.state = 'starting'
         self.queued_jobs = []
-        self.active_targets = {}
         self.workers = {}
         self.dags = dags
-        self.tasks = []
+        self.tasks = {}
 
     def done(self):
         return self.state == 'done'
@@ -35,7 +35,8 @@ class Scheduler:
     def activate_tasks(self, max_dags=1):
         ready_tasks = self.dags.get_tasks([READY], 1)
         if len(ready_tasks):
-            self.tasks += ready_tasks
+            for a in ready_tasks:
+                self.tasks[a.task_id] = a
             return
         logging.debug("Activating new tasks")
         
@@ -46,7 +47,7 @@ class Scheduler:
         for task in pending_tasks:
             if task.is_ready():
                 if max_dags == 0 or len(dag_set) < max_dags or task.dag_id in dag_set:
-                    record = self.workrepo.get_jobrecord()
+                    record = self.workrepo.get_jobrecord(task.task_id)
                     if record is None or not record.match_inputs(task.get_inputs()):
                         logging.debug("Activating Task %s" % (task.task_id))
                         task.state = READY
@@ -54,9 +55,10 @@ class Scheduler:
                         dag_set[task.dag_id] = True
                     else:
                         logging.debug("Using stored task %s" % (task.task_id))
-        self.tasks += ready_tasks
+        for a in ready_tasks:
+            self.tasks[a.task_id] = a
         
-    def get_work(self, worker, host=None):
+    def get_task(self, worker, host=None):
         self.workers.update({'host': host})
         best_t = float('inf')
         best_priority = float('-inf')
@@ -64,10 +66,10 @@ class Scheduler:
         locally_ready_tasks = 0
         running_tasks = []
 
-        if len([a for a in self.tasks if a.state == READY]) <= 0:
+        if len([a for a in self.tasks.values() if a.state == READY]) <= 0:
             self.activate_tasks()
         
-        for task in self.tasks:
+        for task in self.tasks.values():
             if task.state == RUNNING:
                 running_tasks.append(task.task_id)
             if task.state != READY:
@@ -81,5 +83,13 @@ class Scheduler:
             best_task.state = RUNNING
             best_task.worker_running = worker
             best_task.time_running = time.time()
-
         return best_task
+    
+    def complete_task(self, task_id):
+        self.tasks[task_id].state = DONE
+        job_record = {
+            'task_id' : task_id
+        }
+        
+        self.workrepo.store_jobrecord(task_id, JobRecord(job_record))
+        del self.tasks[task_id]

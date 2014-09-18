@@ -82,14 +82,22 @@ class SubTask(object):
 
     def run(self):
         logging.info("Running Nebula task: %s" % (self.task.task_id.value))
+        nebula_task_id = None
         try:
             obj = json.loads(self.task.data)
             if 'task_type' in obj and obj['task_type'] in task_runner_map:
+                nebula_task_id = str(obj['task_id'])
+                update = mesos_pb2.TaskStatus()
+                update.task_id.value = self.task.task_id.value
+                update.state = mesos_pb2.TASK_RUNNING
+                update.data = nebula_task_id
+                self.driver.sendStatusUpdate(update)
                 cl = task_runner_map[obj['task_type']]
                 inst = cl(obj)
                 inst.start()            
                 update = mesos_pb2.TaskStatus()
                 update.task_id.value = self.task.task_id.value
+                update.data = nebula_task_id
                 update.state = mesos_pb2.TASK_FINISHED
                 self.driver.sendStatusUpdate(update)
             else:
@@ -99,6 +107,7 @@ class SubTask(object):
             traceback.print_exc()
             update = mesos_pb2.TaskStatus()
             update.task_id.value = self.task.task_id.value
+            update.data = nebula_task_id
             update.state = mesos_pb2.TASK_FAILED
             self.driver.sendStatusUpdate(update)
 
@@ -112,12 +121,8 @@ class NebulaExecutor(mesos.Executor):
 
     def launchTask(self, driver, task):
         logging.debug( "Running task %s" % task.task_id.value )
-        update = mesos_pb2.TaskStatus()
-        update.task_id.value = task.task_id.value
-        update.state = mesos_pb2.TASK_RUNNING
         subtask = SubTask(driver, task)
         threading.Thread(target=subtask.run).start()
-        driver.sendStatusUpdate(update)
 
     def killTask(self, driver, task_id):
         logging.debug( "Killing task %s" % task_id.value )

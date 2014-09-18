@@ -15,6 +15,8 @@
 import os
 import json
 import tarfile
+from nebula.jobrecord import JobRecord
+
 
 IMAGE_DIR = "images"
 JOB_DIR = "jobs"
@@ -28,6 +30,9 @@ class WorkRepo:
         images = os.path.join(basedir, IMAGE_DIR)
         if not os.path.exists(images):
             os.mkdir(images)
+        jobs = os.path.join(basedir, JOB_DIR)
+        if not os.path.exists(jobs):
+            os.mkdir(jobs)
     
     def get_dockerimage_sha1(self, name):
         image = self.get_dockerimage_path(name)
@@ -43,12 +48,17 @@ class WorkRepo:
     def get_dockerimage_path(self, name):
         return os.path.join(self.basedir, IMAGE_DIR, name + ".tar")
     
-    
-    def get_jobrecord(self, name):
-        path = os.path.join(self.basedir, JOB_DIR, name + ".json")
+    def get_jobrecord(self, task_id):
+        path = os.path.join(self.basedir, JOB_DIR, task_id + ".json")
         if os.path.exists(path):
             with open(path) as handle:
                 txt = handle.read()
                 data = json.loads(txt)
                 return JobRecord(data)
         return None
+    
+    def store_jobrecord(self, task_id, record):
+        path = os.path.join(self.basedir, JOB_DIR, task_id + ".json")
+        with open(path, "w") as handle:
+            txt = json.dumps(record.data)
+            handle.write(txt)
