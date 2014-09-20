@@ -156,7 +156,8 @@ class NebularMesos(mesos.Scheduler):
 
         if status.state == mesos_pb2.TASK_FINISHED:
             logging.info("Task %s, slave %s is FINISHED" % (status.task_id.value, status.slave_id.value))
-            self.scheduler.complete_task(status.data)
+            data = json.loads(status.data)
+            self.scheduler.complete_task(data['task_id'], data)
 
         if status.state == mesos_pb2.TASK_FAILED:
             logging.info("Task %s, slave %s is FAILED" % (status.task_id.value, status.slave_id.value))

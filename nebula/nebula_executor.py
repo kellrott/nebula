@@ -26,6 +26,10 @@ import traceback
 import logging
 import subprocess
 import tempfile
+import uuid
+import hashlib
+
+
 
 """
 This program is designed to be modular, and not directly reference any other 
@@ -35,6 +39,17 @@ run as a single file.
 
 
 logging.basicConfig(level=logging.INFO)
+
+
+def file_uuid(path):
+    """Generate a UUID from the SHA-1 of file."""
+    hash = hashlib.sha1()
+    with open(path, 'rb') as handle:
+        while True:
+            block = handle.read(1024)
+            if not block: break
+            hash.update(block)
+    return uuid.UUID(bytes=hash.digest()[:16], version=5)
 
 
 class TaskRunner:
@@ -94,10 +109,18 @@ class SubTask(object):
                 self.driver.sendStatusUpdate(update)
                 cl = task_runner_map[obj['task_type']]
                 inst = cl(obj)
-                inst.start()            
+                inst.start()
+                for k, v in obj['outputs'].items():
+                    pass
+                    
                 update = mesos_pb2.TaskStatus()
                 update.task_id.value = self.task.task_id.value
-                update.data = nebula_task_id
+                update.data = json.dumps({
+                    'task_id' : nebula_task_id,
+                    'status' : "DONE",
+                    'inputs' : obj['inputs'],
+                    'outputs' : outputs
+                })
                 update.state = mesos_pb2.TASK_FINISHED
                 self.driver.sendStatusUpdate(update)
             else:

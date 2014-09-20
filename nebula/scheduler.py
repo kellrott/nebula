@@ -85,11 +85,7 @@ class Scheduler:
             best_task.time_running = time.time()
         return best_task
     
-    def complete_task(self, task_id):
-        self.tasks[task_id].state = DONE
-        job_record = {
-            'task_id' : task_id
-        }
-        
+    def complete_task(self, task_id, job_record):
+        self.tasks[task_id].state = DONE        
         self.workrepo.store_jobrecord(task_id, JobRecord(job_record))
         del self.tasks[task_id]

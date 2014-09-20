@@ -30,6 +30,8 @@ class Shell(TaskNode):
             'task_id' : self.task_id,
             'task_type' : 'shell',
             'script' : self.script,
+            'inputs' : self.get_input_data(),
             'outputs' : dict( (k, v.path) for k,v in self.outputs.items()),
             'docker' : self.docker.name
         }
+    

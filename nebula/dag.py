@@ -147,6 +147,13 @@ class TaskNode(object):
                             elif isinstance(v, TaskNode):
                                 for k2, v2 in v.get_outputs().items():
                                     self.outputs[k2] = v2
+    
+    def get_input_data(self):
+        out = {}
+        for k, v in self.get_inputs():
+            out[k] = v.uuid
+        return out
+
 
     def __str__(self):
         return "%s(inputs:%s)" % (self.task_id, ",".join(str(a) for a in self.get_inputs().values()))
