@@ -11,22 +11,14 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import os
-import sys
-import time
-import argparse
-import logging
-import hashlib
-import uuid
-
-
 from parser import NebulaCompile
 from scheduler import Scheduler
 from website import WebSite
 from workrepo import WorkRepo
 
 class Config:
-    def __init__(self, mesos=None, port=9999, host='localhost'):
+    def __init__(self, mesos=None, port=9999, host='localhost', workdir="/tmp"):
         self.mesos = mesos
         self.port = port
         self.host = host
+        self.workdir = workdir

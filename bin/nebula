@@ -22,7 +22,11 @@ import socket
 from nebula import NebulaCompile, Scheduler, Config, WebSite, WorkRepo
 
 def main(args):
-    config = Config(mesos=args.mesos, port=args.port, host=args.server)
+    config = Config(mesos=args.mesos,
+        port=args.port,
+        host=args.server,
+        workdir=args.workdir
+    )
     build = NebulaCompile()
     build.compile(args.buildfile)
     workrepo = WorkRepo(os.path.join(os.path.dirname(args.buildfile), ".nebula"))
@@ -62,6 +66,7 @@ if __name__ == "__main__":
     parser.add_argument("-v", action="store_true", default=False)
     parser.add_argument("-t", "--tree", action="store_true", default=False)
     parser.add_argument("-s", "--server", default=None)
+    parser.add_argument("-w", "--workdir", default="/tmp")
 
     parser.add_argument("builddir", nargs="?", default=None)
     args = parser.parse_args()
@@ -70,6 +75,7 @@ if __name__ == "__main__":
         args.buildfile = os.path.abspath("NebulaFile")
     else:
         args.buildfile = os.path.join(os.path.abspath(args.builddir), "NebulaFile")
+    args.workdir = os.path.abspath(args.workdir)
 
     if args.server is None:
         args.server = socket.gethostname()

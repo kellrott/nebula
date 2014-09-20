@@ -84,7 +84,7 @@ class NebularMesos(mesos.Scheduler):
         uri.value = uri_value
         uri.executable = True
 
-        executor.command.value = "./nebula_executor.py"
+        executor.command.value = "./nebula_executor.py -w %s" % (self.config.workdir)
         executor.name = "nebula_worker"
         executor.source = "nebula_farm"
         return executor
