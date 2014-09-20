@@ -32,8 +32,8 @@ import hashlib
 
 
 """
-This program is designed to be modular, and not directly reference any other 
-code in the nebula library. That way it can be moved out to remote computers and 
+This program is designed to be modular, and not directly reference any other
+code in the nebula library. That way it can be moved out to remote computers and
 run as a single file.
 """
 
@@ -53,13 +53,14 @@ def file_uuid(path):
 
 
 class TaskRunner:
-    def __init__(self, desc):
+    def __init__(self, desc, config):
         self.desc = desc
-    
+        self.config = config
+
     def start(self):
         #FIXME: put wrapper code here
         self.run(self.desc)
-    
+
     def run(self, data):
         raise Exception("Not implemented")
 
@@ -68,12 +69,12 @@ class ShellRunner(TaskRunner):
     def run(self, data):
         script = data['script']
         docker_image = data.get('docker', 'base')
-        workdir="/tmp" #FIXME: get this via config
+        workdir=self.config.workdir
         execdir = os.path.abspath(tempfile.mkdtemp(dir=workdir, prefix="nebula_"))
-        
+
         with open(os.path.join(execdir, "run.sh"), "w") as handle:
             handle.write(script)
-        
+
         cmd = [
             "docker", "run", "--rm", "-u", str(os.geteuid()),
             "-v", "%s:/work" % execdir, "-w", "/work", docker_image,
@@ -91,9 +92,10 @@ task_runner_map = {
 }
 
 class SubTask(object):
-    def __init__(self, driver, task):
+    def __init__(self, driver, task, config):
         self.driver = driver
         self.task = task
+        self.config = config
 
     def run(self):
         logging.info("Running Nebula task: %s" % (self.task.task_id.value))
@@ -108,11 +110,10 @@ class SubTask(object):
                 update.data = nebula_task_id
                 self.driver.sendStatusUpdate(update)
                 cl = task_runner_map[obj['task_type']]
-                inst = cl(obj)
+                inst = cl(obj, self.config)
                 inst.start()
                 for k, v in obj['outputs'].items():
                     pass
-                    
                 update = mesos_pb2.TaskStatus()
                 update.task_id.value = self.task.task_id.value
                 update.data = json.dumps({
@@ -136,15 +137,16 @@ class SubTask(object):
 
 
 class NebulaExecutor(mesos.Executor):
-    def __init__(self):
+    def __init__(self, config):
         mesos.Executor.__init__(self)
+        self.config = config
 
     def init(self, driver, arg):
         logging.info("Starting task worker")
 
     def launchTask(self, driver, task):
         logging.debug( "Running task %s" % task.task_id.value )
-        subtask = SubTask(driver, task)
+        subtask = SubTask(driver, task, self.config)
         threading.Thread(target=subtask.run).start()
 
     def killTask(self, driver, task_id):
@@ -168,6 +170,9 @@ class NebulaExecutor(mesos.Executor):
         print "Error: %s" % message
 
 if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("-w", "--workdir", default="/tmp")
+    args = parser.parse_args()
     logging.info( "Starting Workflow Watcher" )
-    executor = NebulaExecutor()
+    executor = NebulaExecutor(args)
     mesos.MesosExecutorDriver(executor).run()
