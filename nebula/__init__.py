@@ -17,8 +17,9 @@ from website import WebSite
 from workrepo import WorkRepo
 
 class Config:
-    def __init__(self, mesos=None, port=9999, host='localhost', workdir="/tmp"):
+    def __init__(self, mesos=None, port=9999, host='localhost', workdir="/tmp", docker=None):
         self.mesos = mesos
         self.port = port
         self.host = host
         self.workdir = workdir
+        self.docker = docker

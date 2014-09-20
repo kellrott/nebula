@@ -28,7 +28,7 @@ import subprocess
 import tempfile
 import uuid
 import hashlib
-
+import shutil
 
 
 """
@@ -52,6 +52,12 @@ def file_uuid(path):
     return uuid.UUID(bytes=hash.digest()[:16], version=5)
 
 
+def which(file):
+    for path in os.environ["PATH"].split(":"):
+        p = os.path.join(path, file)
+        if os.path.exists(p):
+            return p
+
 class TaskRunner:
     def __init__(self, desc, config):
         self.desc = desc
@@ -64,27 +70,46 @@ class TaskRunner:
     def run(self, data):
         raise Exception("Not implemented")
 
+    def getOutputs(self):
+        raise Exception("Not implemented")
+
+
 class ShellRunner(TaskRunner):
 
     def run(self, data):
         script = data['script']
         docker_image = data.get('docker', 'base')
-        workdir=self.config.workdir
-        execdir = os.path.abspath(tempfile.mkdtemp(dir=workdir, prefix="nebula_"))
+        self.workdir = self.config.workdir
+        self.execdir = os.path.abspath(tempfile.mkdtemp(dir=self.workdir, prefix="nebula_"))
 
-        with open(os.path.join(execdir, "run.sh"), "w") as handle:
+        with open(os.path.join(self.execdir, "run.sh"), "w") as handle:
             handle.write(script)
 
+        docker_path = which('docker')
+        if docker_path is None:
+            raise Exception("Cannot find docker")
+
         cmd = [
-            "docker", "run", "--rm", "-u", str(os.geteuid()),
-            "-v", "%s:/work" % execdir, "-w", "/work", docker_image,
+            docker_path, "run", "--rm", "-u", str(os.geteuid()),
+            "-v", "%s:/work" % self.execdir, "-w", "/work", docker_image,
             "/bin/bash", "/work/run.sh"
         ]
+        env = dict(os.environ)
+        if self.config.docker is not None:
+            env['DOCKER_HOST'] = self.config.docker
+
         logging.info("executing: " + " ".join(cmd))
-        proc = subprocess.Popen(cmd, close_fds=True)
+        proc = subprocess.Popen(cmd, close_fds=True, env=env)
         proc.communicate()
         if proc.returncode != 0:
             raise Exception("Call Failed: %s" % (cmd))
+
+        self.outputs = {}
+        for k, v in data['outputs'].items():
+            self.outputs[k] = os.path.join(self.execdir, v)
+
+    def getOutputs(self):
+        return self.outputs
 
 
 task_runner_map = {
@@ -96,6 +121,9 @@ class SubTask(object):
         self.driver = driver
         self.task = task
         self.config = config
+        self.storage_dir = os.path.join(config.workdir, 'data', socket.gethostname())
+        if not os.path.exists(self.storage_dir):
+            os.makedirs(self.storage_dir)
 
     def run(self):
         logging.info("Running Nebula task: %s" % (self.task.task_id.value))
@@ -112,8 +140,15 @@ class SubTask(object):
                 cl = task_runner_map[obj['task_type']]
                 inst = cl(obj, self.config)
                 inst.start()
-                for k, v in obj['outputs'].items():
-                    pass
+                outputs = {}
+                for k, v in inst.getOutputs().items():
+                    fuuid = str(file_uuid(v))
+                    new_path = os.path.join(self.storage_dir, fuuid)
+                    shutil.move(v, new_path)
+                    outputs[k] = {
+                        'uuid' : fuuid,
+                        'path' : new_path
+                    }
                 update = mesos_pb2.TaskStatus()
                 update.task_id.value = self.task.task_id.value
                 update.data = json.dumps({
@@ -172,6 +207,7 @@ class NebulaExecutor(mesos.Executor):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("-w", "--workdir", default="/tmp")
+    parser.add_argument("--docker", default=None)
     args = parser.parse_args()
     logging.info( "Starting Workflow Watcher" )
     executor = NebulaExecutor(args)

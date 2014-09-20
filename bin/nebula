@@ -25,7 +25,8 @@ def main(args):
     config = Config(mesos=args.mesos,
         port=args.port,
         host=args.server,
-        workdir=args.workdir
+        workdir=args.workdir,
+        docker=args.docker
     )
     build = NebulaCompile()
     build.compile(args.buildfile)
@@ -67,6 +68,7 @@ if __name__ == "__main__":
     parser.add_argument("-t", "--tree", action="store_true", default=False)
     parser.add_argument("-s", "--server", default=None)
     parser.add_argument("-w", "--workdir", default="/tmp")
+    parser.add_argument("--docker", default=None)
 
     parser.add_argument("builddir", nargs="?", default=None)
     args = parser.parse_args()

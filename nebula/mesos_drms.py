@@ -11,6 +11,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+import os
 import json
 import logging
 import threading
@@ -84,7 +85,16 @@ class NebularMesos(mesos.Scheduler):
         uri.value = uri_value
         uri.executable = True
 
-        executor.command.value = "./nebula_executor.py -w %s" % (self.config.workdir)
+        cmd = "./nebula_executor.py -w %s" % (self.config.workdir)
+        if self.config.docker is not None:
+            cmd += " --docker %s" % (self.config.docker)
+
+        executor.command.value = cmd
+
+        env_path = executor.command.environment.variables.add()
+        env_path.name = "PATH"
+        env_path.value = os.environ['PATH']
+
         executor.name = "nebula_worker"
         executor.source = "nebula_farm"
         return executor
