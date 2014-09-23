@@ -65,13 +65,13 @@ class NebularMesos(mesos.Scheduler):
         self.scheduler = scheduler
         self.config = config
         self.workrepo = workrepo
-        self.hosts = {}
+        self.scanned_slaves = {}
         self.master_url = "http://%s:%d" % (self.config.host, self.config.port)
         logging.info("Starting Mesos scheduler")
         logging.info("Mesos Resource URL %s" % (self.master_url))
 
 
-    def getExecutorInfo(self, request):
+    def getExecutorInfo(self):
         """
         Build an executor request structure
         """
@@ -101,15 +101,19 @@ class NebularMesos(mesos.Scheduler):
 
     def getTaskInfo(self, offer, request, accept_cpu, accept_mem):
 
-        task_name = "%s:%s" % (offer.hostname, request.task_id)
+        if request is None:
+            task_name = "%s:%s" % (offer.hostname, "system")
+        else:
+            task_name = "%s:%s" % (offer.hostname, request.task_id)
         task = mesos_pb2.TaskInfo()
         task.task_id.value = task_name
         task.slave_id.value = offer.slave_id.value
         task.name = "Nebula Worker"
-        task.executor.MergeFrom(self.getExecutorInfo(request))
+        task.executor.MergeFrom(self.getExecutorInfo())
 
-        task_data = request.get_task_data(self.workrepo)
-        task.data = json.dumps(task_data)
+        if request is not None:
+            task_data = request.get_task_data(self.workrepo)
+            task.data = json.dumps(task_data)
 
         cpus = task.resources.add()
         cpus.name = "cpus"
@@ -144,34 +148,45 @@ class NebularMesos(mesos.Scheduler):
                     mem_count = int(res.scalar.value)
 
             tasks = []
-
-            work = self.scheduler.get_task(offer.hostname)
-            if work is not None:
-                logging.info("Starting work: %s" % (work))
-                logging.debug("Offered %d cpus" % (cpu_count))
-                cpu_request = 0
+            if offer.slave_id.value not in self.scanned_slaves:
+                logging.info("Scanning slave %s for data" % (offer.slave_id.value))
                 cpu_slice = 1
                 mem_slice = 1024
-                task = self.getTaskInfo(offer, work, cpu_slice, mem_slice)
-                cpu_request += cpu_slice
+                task = self.getTaskInfo(offer, None, cpu_slice, mem_slice)
+                task.data = json.dumps({'task_type' : 'fileScan', 'inputs' : None, 'task_id' : None})
                 tasks.append(task)
-                self.hosts[offer.hostname] = self.hosts.get(offer.hostname, 0) + cpu_slice
+                self.scanned_slaves[offer.slave_id.value] = True
+            else:
+                work = self.scheduler.get_task(offer.slave_id.value)
+                if work is not None:
+                    logging.info("Starting work: %s" % (work))
+                    logging.debug("Offered %d cpus" % (cpu_count))
+                    cpu_slice = 1
+                    mem_slice = 1024
+                    task = self.getTaskInfo(offer, work, cpu_slice, mem_slice)
+                    tasks.append(task)
             status = driver.launchTasks(offer.id, tasks)
 
 
     def statusUpdate(self, driver, status):
         if status.state == mesos_pb2.TASK_RUNNING:
             logging.info("Task %s, slave %s is RUNNING" % (status.task_id.value, status.slave_id.value))
-            print status.data
+            #print status.data
 
         if status.state == mesos_pb2.TASK_FINISHED:
             logging.info("Task %s, slave %s is FINISHED" % (status.task_id.value, status.slave_id.value))
             data = json.loads(status.data)
-            self.scheduler.complete_task(data['task_id'], data)
+            #print data
+            if data['task_type'] == 'fileScan':
+                logging.info("Received worker file scan")
+                for k, v in data['outputs'].items():
+                    self.scheduler.add_data_location(k, status.slave_id.value)
+            else:
+                self.scheduler.complete_task(status.slave_id.value, data['task_id'], data)
 
         if status.state == mesos_pb2.TASK_FAILED:
             logging.info("Task %s, slave %s is FAILED" % (status.task_id.value, status.slave_id.value))
-            print status.data
+            #print status.data
 
     def getFrameworkName(self, driver):
         return "GalaxyGrid"

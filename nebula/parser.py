@@ -1,7 +1,8 @@
 
 import os
+import uuid
 import traceback
-from nebula.dag import TaskDag, TaskNode, DagSet, TargetFile
+from nebula.dag import TaskDag, TaskNode, DagSet, TargetFile, TargetFuture, TaskFuture
 from nebula.exceptions import CompileException
 from nebula.scheduler import Scheduler
 from nebula.service import Docker
@@ -22,9 +23,9 @@ class NebulaCompile:
             except Exception:
                 traceback.print_exc()
                 raise Exception("Failed to init: %s" % (cls) )
-            return inst
+            return TaskFuture(inst)
         return init
-    
+
     def compile(self, path, additional_vars=None):
         self.src_path = path
         basedir = os.path.dirname(path)
@@ -35,11 +36,11 @@ class NebulaCompile:
             'TargetFile' : TargetFile,
             'Docker' : Docker
         }
-        
+
         if additional_vars is not None:
             for k,v in additional_vars.items():
                 global_env[k] = v
-        
+
         for k, v in nebula.tasks.__mapping__.items():
             global_env[k] = self.build_task(v)
 
@@ -59,13 +60,13 @@ class NebulaCompile:
     def to_dags(self):
         #dag_map maps item node to its dag set
         dag_map = {}
-        
+
         all_targets = {}
         for k, v in self.target_map.items():
             all_targets[k] = v
             for sk, sv in v.sub_targets().items():
                 all_targets[sk] = sv
-        
+
         for i, k in enumerate(all_targets):
             dag_map[k] = i
 
@@ -73,11 +74,12 @@ class NebulaCompile:
         edges = []
         for key, value in all_targets.items():
             for name, element in value.get_inputs().items():
-                if isinstance(element, TaskNode):
-                    edges.append( (key, element.task_id) )
                 if isinstance(element, TargetFile) and element.parent_task is not None:
                     edges.append( (key, element.parent_task.task_id) )
-
+                elif isinstance(element, TargetFuture) and element.parent_task is not None:
+                    edges.append( (key, element.parent_task.task_id) )
+                else:
+                    raise Exception("Broken Input: %s" % element)
         change = True
         while change:
             change = False
@@ -95,7 +97,7 @@ class NebulaCompile:
                         dag_map[node] = new_color
         out = DagSet()
         for i in set(dag_map.values()):
-            item_set = dict([ (k,v) for k, v in all_targets.items() if dag_map[k] == i ]) 
+            item_set = dict([ (k,v) for k, v in all_targets.items() if dag_map[k] == i ])
             if any( all_targets[t].is_active_task() for t in item_set ):
                 d = TaskDag( i, item_set)
                 out.append(d)

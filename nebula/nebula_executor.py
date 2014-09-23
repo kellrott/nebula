@@ -19,6 +19,7 @@ from argparse import ArgumentParser
 import sys
 import time
 import os
+import re
 import socket
 import json
 import threading
@@ -29,7 +30,7 @@ import tempfile
 import uuid
 import hashlib
 import shutil
-
+from glob import glob
 
 """
 This program is designed to be modular, and not directly reference any other
@@ -41,16 +42,7 @@ run as a single file.
 logging.basicConfig(level=logging.INFO)
 
 
-def file_uuid(path):
-    """Generate a UUID from the SHA-1 of file."""
-    hash = hashlib.sha1()
-    with open(path, 'rb') as handle:
-        while True:
-            block = handle.read(1024)
-            if not block: break
-            hash.update(block)
-    return uuid.UUID(bytes=hash.digest()[:16], version=5)
-
+uuid4hex = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', re.I)
 
 def which(file):
     for path in os.environ["PATH"].split(":"):
@@ -106,14 +98,33 @@ class ShellRunner(TaskRunner):
 
         self.outputs = {}
         for k, v in data['outputs'].items():
-            self.outputs[k] = os.path.join(self.execdir, v)
+            self.outputs[k] = {
+                'store_path' : os.path.join(self.execdir, v['path']),
+                'uuid' : v['uuid']
+            }
+
+    def getOutputs(self):
+        return self.outputs
+
+
+class FileScanner(TaskRunner):
+
+    def run(self, data):
+        out = {}
+        logging.info("Scanning for files %s" % (self.config.storage_dir))
+        for a in glob(os.path.join(self.config.storage_dir, "*")):
+            name = os.path.basename(a)
+            if uuid4hex.match(name):
+                out[name] = {'uuid' : name, 'store_path' : os.path.abspath(a)}
+        self.outputs = out
 
     def getOutputs(self):
         return self.outputs
 
 
 task_runner_map = {
-    'shell' : ShellRunner
+    'shell' : ShellRunner,
+    'fileScan' : FileScanner
 }
 
 class SubTask(object):
@@ -121,9 +132,9 @@ class SubTask(object):
         self.driver = driver
         self.task = task
         self.config = config
-        self.storage_dir = os.path.join(config.workdir, 'data', socket.gethostname())
-        if not os.path.exists(self.storage_dir):
-            os.makedirs(self.storage_dir)
+        self.config.storage_dir = os.path.join(config.workdir, 'data')
+        if not os.path.exists(self.config.storage_dir):
+            os.makedirs(self.config.storage_dir)
 
     def run(self):
         logging.info("Running Nebula task: %s" % (self.task.task_id.value))
@@ -142,17 +153,17 @@ class SubTask(object):
                 inst.start()
                 outputs = {}
                 for k, v in inst.getOutputs().items():
-                    fuuid = str(file_uuid(v))
-                    new_path = os.path.join(self.storage_dir, fuuid)
-                    shutil.move(v, new_path)
+                    new_path = os.path.join(self.config.storage_dir, v['uuid'])
+                    shutil.move(v['store_path'], new_path)
                     outputs[k] = {
-                        'uuid' : fuuid,
-                        'path' : new_path
+                        'uuid' : v['uuid'],
+                        'store_path' : new_path
                     }
                 update = mesos_pb2.TaskStatus()
                 update.task_id.value = self.task.task_id.value
                 update.data = json.dumps({
                     'task_id' : nebula_task_id,
+                    'task_type' : obj['task_type'],
                     'status' : "DONE",
                     'inputs' : obj['inputs'],
                     'outputs' : outputs

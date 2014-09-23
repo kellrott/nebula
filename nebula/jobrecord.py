@@ -31,10 +31,10 @@ def file_uuid(path):
 class JobRecord:
     def __init__(self, data):
         self.data = data
-    
+
     def match_inputs(self, inputs):
         matched = True
         for k, v in self.data['inputs'].items():
-            if v['uuid'] != data[k]['uuid']:
+            if v['uuid'] != inputs[k].uuid:
                 matched = False
         return matched

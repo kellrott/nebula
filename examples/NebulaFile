@@ -7,4 +7,11 @@ fasta_files = [
 curl_docker = Docker("curl_docker")
 
 for i, a in enumerate(fasta_files):
-    Shell("fasta_%s" % i, "curl %s > out.seq" % a, inputs=None, outputs={'fasta_file' : TargetFile("out.seq")}, docker=curl_docker)
+    seq = Shell("fasta_%s" % i, "curl %s > out.seq" % a, inputs=None,
+        outputs={'fasta_file' : "out.seq"},
+        docker=curl_docker
+    )
+    ms5sum = Shell("md5_%s" % i, "md5sum ${seq_file} > out.md5",
+        inputs={ 'seq_file' : seq['fasta_file'] },
+        outputs={'md5sum' : 'out.md5'}, docker=curl_docker
+    )
