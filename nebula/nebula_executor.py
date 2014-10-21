@@ -132,9 +132,6 @@ class SubTask(object):
         self.driver = driver
         self.task = task
         self.config = config
-        self.config.storage_dir = os.path.join(config.workdir, 'data')
-        if not os.path.exists(self.config.storage_dir):
-            os.makedirs(self.config.storage_dir)
 
     def run(self):
         logging.info("Running Nebula task: %s" % (self.task.task_id.value))
@@ -219,6 +216,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("-w", "--workdir", default="/tmp")
     parser.add_argument("--docker", default=None)
+    parser.add_argument("--storage-dir", default="/tmp/nebula-store")
     args = parser.parse_args()
     logging.info( "Starting Workflow Watcher" )
     executor = NebulaExecutor(args)

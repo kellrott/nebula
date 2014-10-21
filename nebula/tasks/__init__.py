@@ -10,3 +10,7 @@ __mapping__ = {
     'Python' : FunctionCall,
     'Nebula' : NebulaTask
 }
+
+
+def from_dict(data):
+    return TaskMapping[data['taskType']].from_dict(data)
