@@ -131,7 +131,7 @@ class TaskDag(object):
             logging.debug("Changing %s output target file uuid from %s to %s" % (task.task_id, t[k].uuid, v['uuid']))
             t[k].uuid = v['uuid']
 
-        print "dag", self.dag_id, self.tasks
+        #print "dag", self.dag_id, self.tasks
         for dep in self.tasks.values():
             if dep.has_requirement(task_id):
                 logging.debug("Found dependent task of %s : %s" % (task_id, dep.task_id))
@@ -140,8 +140,8 @@ class TaskDag(object):
                     if v.uuid in uuid_remap:
                         logging.debug("Changing %s input target file uuid from %s to %s" % (task.task_id, v.uuid, uuid_remap[v.uuid]))
                         v.uuid = uuid_remap[v.uuid]
-            else:
-                logging.info("%s not dependent on %s" % (dep.task_id, task_id))
+            #else:
+            #    logging.info("%s not dependent on %s" % (dep.task_id, task_id))
 
 
     def __str__(self):
@@ -229,7 +229,7 @@ class TaskNode(object):
         return self.outputs
 
     def has_requirement(self, task_id):
-        if len( list(a for a in self.get_inputs().values() if a.parent_task.task_id == task_id) ):
+        if len( list(a for a in self.get_inputs().values() if a.parent_task_id == task_id) ):
             return True
         return False
 
