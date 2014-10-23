@@ -2,6 +2,7 @@
 import os
 import uuid
 import traceback
+import sys
 from nebula.dag import TaskDag, TaskNode, DagSet, TargetFile, TargetFuture, TaskFuture
 from nebula.exceptions import CompileException
 from nebula.scheduler import Scheduler
@@ -45,11 +46,14 @@ class NebulaCompile:
             global_env[k] = self.build_task(v)
 
         local_env = {}
-        my_code_AST = compile(code, "NebulaFile", "exec")
         try:
             old_cwd = os.getcwd()
             os.chdir(basedir)
+            orig_path = sys.path
+            sys.path.insert(0, basedir)
+            my_code_AST = compile(code, path, "exec")
             exec(my_code_AST, global_env, local_env)
+            sys.path = orig_path
         except CompileException, e:
             os.chdir(old_cwd)
             sys.stderr.write("Failure in Compile:" + e.msg + "\n")
