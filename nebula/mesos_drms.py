@@ -66,6 +66,7 @@ class NebularMesos(mesos.Scheduler):
         self.config = config
         self.workrepo = workrepo
         self.scanned_slaves = {}
+        self.active_tasks = {}
         self.master_url = "http://%s:%d" % (self.config.host, self.config.port)
         logging.info("Starting Mesos scheduler")
         logging.info("Mesos Resource URL %s" % (self.master_url))
@@ -88,7 +89,6 @@ class NebularMesos(mesos.Scheduler):
         cmd = "./nebula_executor.py -w %s --storage-dir %s" % (self.config.workdir, self.config.dist_storage_dir)
         if self.config.docker is not None:
             cmd += " --docker %s" % (self.config.docker)
-
 
         executor.command.value = cmd
         logging.info("Executor Command: %s" % cmd)
@@ -135,41 +135,40 @@ class NebularMesos(mesos.Scheduler):
     def resourceOffers(self, driver, offers):
         logging.debug("Got %s slot offers" % len(offers))
         batch_ready = {}
-        #wq = WorkQueue(self.app.model.context)
 
         for offer in offers:
-            #store the offer info
-            cpu_count = 0
-            for res in offer.resources:
-                if res.name == 'cpus':
-                    cpu_count = int(res.scalar.value)
-
-            mem_count = 0
-            for res in offer.resources:
-                if res.name == 'mem':
-                    mem_count = int(res.scalar.value)
-
             tasks = []
-            if offer.slave_id.value not in self.scanned_slaves:
-                logging.info("Scanning slave %s for data" % (offer.slave_id.value))
-                cpu_slice = 1
-                mem_slice = 1024
-                task = self.getTaskInfo(offer, None, cpu_slice, mem_slice)
-                task.data = json.dumps({'task_type' : 'fileScan', 'inputs' : None, 'task_id' : None})
-                tasks.append(task)
-                self.scanned_slaves[offer.slave_id.value] = True
-            else:
-                work = self.scheduler.get_task(offer.slave_id.value)
-                if work is not None:
-                    work.init_service(self.config)
-                    logging.info("Starting work: %s" % (work))
-                    logging.debug("Offered %d cpus" % (cpu_count))
+            if self.config.max_servers <= 0 or len(self.active_tasks) < self.config.max_servers:
+                #store the offer info
+                cpu_count = 0
+                for res in offer.resources:
+                    if res.name == 'cpus':
+                        cpu_count = int(res.scalar.value)
+
+                mem_count = 0
+                for res in offer.resources:
+                    if res.name == 'mem':
+                        mem_count = int(res.scalar.value)
+
+                if offer.slave_id.value not in self.scanned_slaves:
+                    logging.info("Scanning slave %s for data" % (offer.slave_id.value))
                     cpu_slice = 1
                     mem_slice = 1024
-                    task = self.getTaskInfo(offer, work, cpu_slice, mem_slice)
+                    task = self.getTaskInfo(offer, None, cpu_slice, mem_slice)
+                    task.data = json.dumps({'task_type' : 'fileScan', 'inputs' : None, 'task_id' : None})
                     tasks.append(task)
+                    self.scanned_slaves[offer.slave_id.value] = True
+                else:
+                    work = self.scheduler.get_task(offer.slave_id.value)
+                    if work is not None:
+                        work.init_service(self.config)
+                        logging.info("Starting work: %s" % (work))
+                        logging.debug("Offered %d cpus" % (cpu_count))
+                        cpu_slice = 1
+                        mem_slice = 1024
+                        task = self.getTaskInfo(offer, work, cpu_slice, mem_slice)
+                        tasks.append(task)
             status = driver.launchTasks(offer.id, tasks)
-
 
     def statusUpdate(self, driver, status):
         if status.state == mesos_pb2.TASK_RUNNING:

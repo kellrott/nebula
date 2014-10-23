@@ -29,10 +29,13 @@ def main(args):
         docker=args.docker,
         docker_clean = args.docker_clean,
         dist_storage_dir = os.path.abspath(args.dist_storage),
-        basedir=os.path.dirname(args.buildfile)
+        basedir=os.path.dirname(args.buildfile),
+        max_servers=args.max_servers
     )
     build = NebulaCompile()
-    build.compile(args.buildfile)
+    if build.compile(args.buildfile):
+        sys.stderr.write("Compile Failure")
+        sys.exit(1)
     workrepo = config.get_work_repo()
     sched = Scheduler(build.to_dags(), workrepo, config)
     web = WebSite(sched, config)
@@ -62,7 +65,9 @@ def describe(args):
     )
     if not args.resume:
         build = NebulaCompile()
-        build.compile(args.buildfile)
+        if build.compile(args.buildfile):
+            sys.stderr.write("Compile Failure")
+            sys.exit(1)
         dagset = build.to_dags()
         dagset.save(config.get_schema_dir())
     else:
@@ -82,6 +87,7 @@ if __name__ == "__main__":
     parser.add_argument("--docker-clean", action="store_true", default=False)
     parser.add_argument("--dist-storage", default="/tmp/nebula-storage")
     parser.add_argument("-s", "--server", default=None)
+    parser.add_argument("-m", "--max-servers", type=int, default=0)
     parser.add_argument("-w", "--workdir", default="/tmp")
     parser.add_argument("--docker", default=None)
 
