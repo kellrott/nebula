@@ -21,6 +21,7 @@ import subprocess
 
 from nebula.service import Docker
 from nebula.exceptions import NotImplementedException
+from nebula.exceptions import CompileException
 
 PENDING = 'PENDING'
 READY = 'READY'
@@ -106,7 +107,6 @@ class TaskDag(object):
         for k, v in data['tasks'].items():
             tasks[k] = TaskNode.from_dict(v)
             tasks[k].dag = out
-            print "setting", tasks[k]
         out.tasks = tasks
         return out
 
@@ -201,8 +201,9 @@ class TaskNode(object):
                 self.inputs[k] = TargetFuture(v['task_id'], v['uuid'])
 
     def init_outputs(self, outputs):
-        print "outputs", outputs
         for k, v in outputs.items():
+            if not isinstance(v, basestring):
+                raise CompileException("Bad output path")
             t = TargetFile(v)
             t.parent_task = self
             self.outputs[k] = t
@@ -290,6 +291,12 @@ class TaskFuture:
         if name in self.task.outputs:
             a.uuid = self.task.outputs[name].uuid
         return a
+    
+    def keys(self):
+        return self.task.outputs.keys()
+    
+    def __str__(self):
+        return "TaskFuture{%s}" % (",".join(self.task.get_outputs().keys()))
 
 
 class TargetFuture:
@@ -297,6 +304,9 @@ class TargetFuture:
     Task output that will be generated in the future
     """
     def __init__(self, parent_task_id, in_uuid=None):
+        if not isinstance(parent_task_id, basestring):
+            print parent_task_id
+            raise CompileException("Non-String parent ID")
         self.parent_task_id = parent_task_id
         if in_uuid is None:
             self.uuid = str(uuid.uuid4())

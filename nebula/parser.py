@@ -1,8 +1,11 @@
 
+import sys
 import os
 import uuid
 import traceback
 import sys
+import logging
+
 from nebula.dag import TaskDag, TaskNode, DagSet, TargetFile, TargetFuture, TaskFuture
 from nebula.exceptions import CompileException
 from nebula.scheduler import Scheduler
@@ -13,6 +16,7 @@ import nebula.tasks
 class NebulaCompile:
     def __init__(self):
         self.target_map = {}
+        self.output_map = {}
 
     def build_task(self, cls):
         def init(name, *args, **kwds):
@@ -27,15 +31,22 @@ class NebulaCompile:
             return TaskFuture(inst)
         return init
 
+    def yield_target(self, name, target):
+        if not isinstance(target, TargetFuture):
+            raise CompileException("Trying to yield non-target")
+        self.output_map[name] = target
+
     def compile(self, path, additional_vars=None):
         self.src_path = path
         basedir = os.path.dirname(path)
+        logging.info("Compiling: %s" % (path))
         with open(path) as handle:
             code = handle.read()
 
         global_env = {
             'TargetFile' : TargetFile,
-            'Docker' : Docker
+            'Docker' : Docker,
+            'Yield' : self.yield_target
         }
 
         if additional_vars is not None:
@@ -68,23 +79,24 @@ class NebulaCompile:
         all_targets = {}
         for k, v in self.target_map.items():
             all_targets[k] = v
-            for sk, sv in v.sub_targets().items():
-                all_targets[sk] = sv
 
         for i, k in enumerate(all_targets):
             dag_map[k] = i
 
-        #build target->depends edges
+        #build src->depends edges
         edges = []
         for key, value in all_targets.items():
             for name, element in value.get_inputs().items():
                 if isinstance(element, TargetFile) and element.parent_task_id is not None:
                     edges.append( (key, element.parent_task_id) )
                 elif isinstance(element, TargetFuture) and element.parent_task_id is not None:
+                    print "Parent_Task_id", element, element.parent_task_id
                     edges.append( (key, element.parent_task_id) )
                 else:
                     raise Exception("Broken Input: %s" % element)
         change = True
+        print "edges", edges
+        print "elements", dag_map
         while change:
             change = False
             #find nodes that are connected but part of different DAG sets
