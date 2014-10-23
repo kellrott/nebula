@@ -78,10 +78,10 @@ class NebulaCompile:
         edges = []
         for key, value in all_targets.items():
             for name, element in value.get_inputs().items():
-                if isinstance(element, TargetFile) and element.parent_task is not None:
-                    edges.append( (key, element.parent_task.task_id) )
-                elif isinstance(element, TargetFuture) and element.parent_task is not None:
-                    edges.append( (key, element.parent_task.task_id) )
+                if isinstance(element, TargetFile) and element.parent_task_id is not None:
+                    edges.append( (key, element.parent_task_id) )
+                elif isinstance(element, TargetFuture) and element.parent_task_id is not None:
+                    edges.append( (key, element.parent_task_id) )
                 else:
                     raise Exception("Broken Input: %s" % element)
         change = True

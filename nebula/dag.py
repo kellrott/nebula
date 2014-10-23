@@ -13,9 +13,13 @@
 
 import os
 import uuid
+import json
 import time
 import logging
+from glob import glob
+import subprocess
 
+from nebula.service import Docker
 from nebula.exceptions import NotImplementedException
 
 PENDING = 'PENDING'
@@ -29,6 +33,22 @@ UNKNOWN = 'UNKNOWN'
 class DagSet:
     def __init__(self):
         self.dags = {}
+
+    def save(self, basedir):
+        for k, v in self.dags.items():
+            path = os.path.join(basedir, str(k) + ".json")
+            with open(path, "w") as handle:
+                handle.write(json.dumps(v.to_dict()))
+
+    @staticmethod
+    def load(basedir):
+        out = DagSet()
+        for path in glob(os.path.join(basedir, "*.json")):
+            with open(path) as handle:
+                data = json.loads(handle.read())
+            dag = TaskDag.from_dict(data)
+            out.dags[dag.dag_id] = dag
+        return out
 
     def append(self, dag):
         dag_id = len(self.dags)
@@ -70,6 +90,26 @@ class TaskDag(object):
         self.dag_id = dag_id
         for t in self.tasks:
             self.tasks[t].dag_id = dag_id
+            self.tasks[t].dag = self
+
+    def to_dict(self):
+        return {
+            'id' : self.dag_id,
+            'tasks' : dict( (k, v.to_dict()) for k,v in self.tasks.items() )
+        }
+
+    @staticmethod
+    def from_dict(data):
+        dag_id = data['id']
+        out = TaskDag(dag_id, {})
+        tasks = {}
+        for k, v in data['tasks'].items():
+            tasks[k] = TaskNode.from_dict(v)
+            tasks[k].dag = out
+            print "setting", tasks[k]
+        out.tasks = tasks
+        return out
+
 
     def get_tasks(self, states=None, limit=0):
         if states is None:
@@ -91,7 +131,7 @@ class TaskDag(object):
             logging.debug("Changing %s output target file uuid from %s to %s" % (task.task_id, t[k].uuid, v['uuid']))
             t[k].uuid = v['uuid']
 
-        print "dag", self.dag_id, self.tasks
+        #print "dag", self.dag_id, self.tasks
         for dep in self.tasks.values():
             if dep.has_requirement(task_id):
                 logging.debug("Found dependent task of %s : %s" % (task_id, dep.task_id))
@@ -100,8 +140,8 @@ class TaskDag(object):
                     if v.uuid in uuid_remap:
                         logging.debug("Changing %s input target file uuid from %s to %s" % (task.task_id, v.uuid, uuid_remap[v.uuid]))
                         v.uuid = uuid_remap[v.uuid]
-            else:
-                logging.info("%s not dependent on %s" % (dep.task_id, task_id))
+            #else:
+            #    logging.info("%s not dependent on %s" % (dep.task_id, task_id))
 
 
     def __str__(self):
@@ -114,14 +154,16 @@ class TargetFile(object):
         self.parent_task = None
 
 class TaskNode(object):
-    def __init__(self, task_id, inputs, outputs):
+    def __init__(self, task_id, inputs=None, outputs=None, task_type=None, dag_id=None, docker=None):
         self.task_id = task_id
+        self.task_type = task_type
         self.state = PENDING
-        self.dag_id = None
         self.priority = 0.0
         self.time = time.time()
 
-        self.params = {}
+        self.dag_id = dag_id
+        self.dag = None
+
         self.inputs = {}
         self.input_tasks = {}
         if inputs is not None:
@@ -130,62 +172,40 @@ class TaskNode(object):
         if outputs is not None:
             self.init_outputs(outputs)
 
+        if docker is None:
+            self.docker = Docker('debian')
+        else:
+            if isinstance(docker, Docker):
+                self.docker = docker
+            else:
+                self.docker = Docker(docker)
+
+
+    @staticmethod
+    def from_dict(data):
+        #ugly hack to prevent circular import at startup
+        module = __import__("nebula.tasks").tasks
+        return module.__mapping__[data['task_type']](**data)
+
+    def to_dict(self):
+        return {
+            'dag_id' : self.dag_id,
+            'inputs' : dict( (k, v.to_dict()) for k, v in self.inputs.items() )
+        }
+
     def init_inputs(self, inputs):
         for k, v in inputs.items():
-            self.inputs[k] = v
-
-        """
-        if inputs is None:
-            self.inputs = {}
-        else:
-            if isinstance(inputs, TaskNode):
-                self.inputs[None] = inputs
+            if isinstance(v, TargetFuture):
+                self.inputs[k] = v
             else:
-                if isinstance(inputs, list):
-                    ilist = inputs
-                else:
-                    ilist = [inputs]
-                for iset in ilist:
-                    if isinstance(iset, TaskNode):
-                        for k, v in iset.get_outputs().items():
-                            self.inputs[k] = v
-                    else:
-                        for k, v in iset.items():
-                            if isinstance(v, TargetFile):
-                                self.inputs[k] = v
-        """
+                self.inputs[k] = TargetFuture(v['task_id'], v['uuid'])
 
     def init_outputs(self, outputs):
+        print "outputs", outputs
         for k, v in outputs.items():
             t = TargetFile(v)
             t.parent_task = self
             self.outputs[k] = t
-
-        """
-        if outputs is None:
-            self.outputs = {}
-        else:
-            if isinstance(outputs, TargetFile):
-                outputs.parent_task = self
-                self.outputs[None] = outputs
-            else:
-                if isinstance(outputs, list) or isinstance(outputs, set):
-                    olist = outputs
-                else:
-                    olist = [outputs]
-                for oset in olist:
-                    if isinstance(oset, TaskNode):
-                        for k, v in oset.get_outputs():
-                            self.outputs[k] = v
-                    else:
-                        for k, v in oset.items():
-                            if isinstance(v, TargetFile):
-                                v.parent_task = self
-                                self.outputs[k] = v
-                            elif isinstance(v, TaskNode):
-                                for k2, v2 in v.get_outputs().items():
-                                    self.outputs[k2] = v2
-        """
 
     def get_input_data(self):
         out = {}
@@ -202,9 +222,6 @@ class TaskNode(object):
     def __str__(self):
         return "%s(inputs:%s)" % (self.task_id, ",".join(str(a) for a in self.get_inputs().values()))
 
-    #def requires(self):
-    #    return self.inputs.values()
-
     def get_inputs(self):
         return self.inputs
 
@@ -212,14 +229,16 @@ class TaskNode(object):
         return self.outputs
 
     def has_requirement(self, task_id):
-        if len( list(a for a in self.get_inputs().values() if a.parent_task.task_id == task_id) ):
+        if len( list(a for a in self.get_inputs().values() if a.parent_task_id == task_id) ):
             return True
         return False
 
     def requires(self):
+        if self.dag is None:
+            raise Exception("Node DAG parent is None")
         out = {}
         for a in self.get_inputs().values():
-            out[a.parent_task.task_id] = a.parent_task
+            out[a.parent_task_id] = self.dag.tasks[a.parent_task_id]
         return out.values()
 
     def is_active_task(self):
@@ -239,6 +258,25 @@ class TaskNode(object):
     def is_complete(self):
         return self.state == DONE
 
+    def init_service(self, config):
+        workrepo = config.get_work_repo()
+        sha1 = workrepo.get_dockerimage_sha1(self.docker.name)
+        if sha1 is None:
+            logging.info("Missing Docker Image: " + self.docker.name)
+            if self.docker.path is not None:
+                logging.info("Running Docker Build")
+                if config.docker_clean:
+                    cache = "--no-cache"
+                else:
+                    cache = ""
+                cmd = "docker build %s -t %s %s" % (cache, self.docker.name, self.docker.path)
+                env = dict(os.environ)
+                if config.docker is not None:
+                    env['DOCKER_HOST'] = config.docker
+                subprocess.check_call(cmd, shell=True, env=env)
+                logging.info("Saving Docker Image: " + self.docker.name)
+                cmd = "docker save %s > %s" % (self.docker.name, workrepo.get_dockerimage_path(self.docker.name))
+                subprocess.check_call(cmd, shell=True, env=env)
 
 class TaskFuture:
     """
@@ -248,15 +286,25 @@ class TaskFuture:
         self.task = task
 
     def __getitem__(self, name):
-        a = TargetFuture(self.task)
+        a = TargetFuture(self.task.task_id)
         if name in self.task.outputs:
             a.uuid = self.task.outputs[name].uuid
         return a
+
 
 class TargetFuture:
     """
     Task output that will be generated in the future
     """
-    def __init__(self, parent_task):
-        self.parent_task = parent_task
-        self.uuid = str(uuid.uuid4())
+    def __init__(self, parent_task_id, in_uuid=None):
+        self.parent_task_id = parent_task_id
+        if in_uuid is None:
+            self.uuid = str(uuid.uuid4())
+        else:
+            self.uuid = in_uuid
+
+    def to_dict(self):
+        return {
+            'task_id' : self.parent_task_id,
+            'uuid' : str(self.uuid)
+        }

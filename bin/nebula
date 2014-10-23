@@ -19,18 +19,21 @@ import logging
 import socket
 
 
-from nebula import NebulaCompile, Scheduler, Config, WebSite, WorkRepo
+from nebula import NebulaCompile, Scheduler, Config, WebSite, WorkRepo, DagSet
 
 def main(args):
     config = Config(mesos=args.mesos,
         port=args.port,
         host=args.server,
         workdir=args.workdir,
-        docker=args.docker
+        docker=args.docker,
+        docker_clean = args.docker_clean,
+        dist_storage_dir = os.path.abspath(args.dist_storage),
+        basedir=os.path.dirname(args.buildfile)
     )
     build = NebulaCompile()
     build.compile(args.buildfile)
-    workrepo = WorkRepo(os.path.join(os.path.dirname(args.buildfile), ".nebula"))
+    workrepo = config.get_work_repo()
     sched = Scheduler(build.to_dags(), workrepo, config)
     web = WebSite(sched, config)
 
@@ -50,11 +53,20 @@ def main(args):
         drms.stop()
 
 def describe(args):
-    config = Config(mesos=args.mesos, port=args.port, host=args.server)
-    build = NebulaCompile()
-    build.compile(args.buildfile)
-
-    dagset = build.to_dags()
+    config = Config(
+        mesos=args.mesos,
+        port=args.port,
+        host=args.server,
+        docker_clean = args.docker_clean,
+        basedir=os.path.dirname(args.buildfile)
+    )
+    if not args.resume:
+        build = NebulaCompile()
+        build.compile(args.buildfile)
+        dagset = build.to_dags()
+        dagset.save(config.get_schema_dir())
+    else:
+        dagset = DagSet.load(config.get_schema_dir())
 
     for a in dagset.dags.values():
         print "DAG:", a
@@ -66,6 +78,9 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=9999)
     parser.add_argument("-v", action="store_true", default=False)
     parser.add_argument("-t", "--tree", action="store_true", default=False)
+    parser.add_argument("-r", "--resume", action="store_true", default=False)
+    parser.add_argument("--docker-clean", action="store_true", default=False)
+    parser.add_argument("--dist-storage", default="/tmp/nebula-storage")
     parser.add_argument("-s", "--server", default=None)
     parser.add_argument("-w", "--workdir", default="/tmp")
     parser.add_argument("--docker", default=None)

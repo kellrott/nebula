@@ -85,11 +85,13 @@ class NebularMesos(mesos.Scheduler):
         uri.value = uri_value
         uri.executable = True
 
-        cmd = "./nebula_executor.py -w %s" % (self.config.workdir)
+        cmd = "./nebula_executor.py -w %s --storage-dir %s" % (self.config.workdir, self.config.dist_storage_dir)
         if self.config.docker is not None:
             cmd += " --docker %s" % (self.config.docker)
 
+
         executor.command.value = cmd
+        logging.info("Executor Command: %s" % cmd)
 
         env_path = executor.command.environment.variables.add()
         env_path.name = "PATH"
@@ -159,6 +161,7 @@ class NebularMesos(mesos.Scheduler):
             else:
                 work = self.scheduler.get_task(offer.slave_id.value)
                 if work is not None:
+                    work.init_service(self.config)
                     logging.info("Starting work: %s" % (work))
                     logging.debug("Offered %d cpus" % (cpu_count))
                     cpu_slice = 1
