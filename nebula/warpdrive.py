@@ -162,7 +162,7 @@ def run_up(args):
             mounts[config_dir] = "/config"
         with open( os.path.join(config_dir, "job_conf.xml"), "w" ) as handle:
             handle.write(string.Template(JOB_CHILD_CONF).substitute(TAG=args.tag, NAME=args.name))
-        env["GALAXY_CONFIG_JOB_CONFIG_FILE"] = "/config/job_conf.xml" 
+        env["GALAXY_CONFIG_JOB_CONFIG_FILE"] = "/config/job_conf.xml"
         env['GALAXY_CONFIG_OUTPUTS_TO_WORKING_DIRECTORY'] = "True"
         privledged=True
 

@@ -44,12 +44,13 @@ class MainHandler(tornado.web.RequestHandler):
         self.write(MAIN_PAGE)
 
 class ResourceHandler(tornado.web.RequestHandler):
-    def initialize(self, scheduler):
+    def initialize(self, scheduler, imagedir):
         self.scheduler = scheduler
+        self.imagedir = imagedir
 
     def get(self, path):
-        if path == "nebula_executor.egg":
-            file = os.path.join(os.path.dirname(__file__), "nebula_executor.egg")
+        if path == "nebula_worker.egg":
+            file = os.path.join(self.imagedir, "nebula_worker.egg")
             with open(file, 'rb') as f:
                 while 1:
                     data = f.read(16384)
@@ -71,7 +72,7 @@ class ServerThread(threading.Thread):
     def run(self):
         application = tornado.web.Application([
             (r"/", MainHandler),
-            (r"/resources/(.*)$", ResourceHandler, {'scheduler' : self.scheduler, 'image_path' : self.config.imagedir})
+            (r"/resources/(.*)$", ResourceHandler, {'scheduler' : self.scheduler, 'imagedir' : self.config.imagedir})
         ])
 
         application.listen(self.port)

@@ -13,10 +13,10 @@
 
 import time
 import logging
-import itertools
 
 from nebula.dag import READY, PENDING, RUNNING, DONE
 from nebula.jobrecord import JobRecord
+from nebula.dag import TargetFile
 
 class Scheduler:
 
@@ -77,11 +77,22 @@ class Scheduler:
             if task.state != READY:
                 continue
             #get a map of data coverage for task
-            location_map = self.get_task_locality(task.task_id)
+            data_count, location_map = self.get_task_locality(task.task_id)
             #check the host for location data readiness
-            if len(task.get_input_data()) == 0 or location_map.get(host, 0.0) == 1.0:
+            found = False
+            if len(task.get_input_data()) == 0:
                 best_task = task
-            else:
+                found = True
+
+            if location_map.get(host, 0.0) == data_count:
+                best_task = task
+                found = True
+
+            if location_map.get(host, 0.0) + location_map.get("*", 0.0) == data_count:
+                best_task = task
+                found = True
+
+            if not found:
                 logging.debug("Data for task %s not local to %s" % (task.task_id, host))
                 print self.data_locality
                 print location_map
@@ -95,21 +106,23 @@ class Scheduler:
     def get_task_locality(self, task_id):
         item_count = 0.0
         out = {}
-        for k, v in self.tasks[task_id].get_input_data().items():
-            for host in self.data_locality.get(v['uuid'], []):
-                out[host] = out.get(host, 0.0) + 1.0
+        inputs = self.tasks[task_id].get_inputs().items()
+        for k, v in inputs:
+            if not self.datamanager.has_data(v.uuid) and isinstance(v, TargetFile):
+                self.datamanager.add_file(v.uuid, path=v.path)
+        for k, v in inputs:
             item_count += 1.0
-        for i in out:
-            out[i] = out[i] / item_count
-        return out
-
-    def add_data_location(self, data_id, host):
-        logging.debug("Adding data %s location %s" % (data_id, host))
-        self.data_locality[data_id] = set(itertools.chain(self.data_locality.get(data_id, set()), [host]))
+            locs = self.datamanager.get_locations(v.uuid)
+            if len(locs):
+                for host in locs:
+                    out[host] = out.get(host, 0.0) + 1.0
+            else:
+                logging.debug("Missing Data for task %s : %s" % (task.task_id, k))
+        return item_count, out
 
     def complete_task(self, host, task_id, job_record):
         self.tasks[task_id].state = DONE
         self.workrepo.store_jobrecord(task_id, JobRecord(job_record))
         for k, v in job_record['outputs'].items():
-            self.add_data_location(v['uuid'], host)
+            self.datamanager.add_location(v['uuid'], host)
         del self.tasks[task_id]

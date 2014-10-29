@@ -32,12 +32,7 @@ import hashlib
 import shutil
 from glob import glob
 
-"""
-This program is designed to be modular, and not directly reference any other
-code in the nebula library. That way it can be moved out to remote computers and
-run as a single file.
-"""
-
+from nebula.service import GalaxyService
 
 logging.basicConfig(level=logging.INFO)
 
@@ -49,6 +44,18 @@ def which(file):
         p = os.path.join(path, file)
         if os.path.exists(p):
             return p
+
+
+def port_active(portnum):
+    """
+    Check if a port is active or not (to prevent trying to allocate used ports)
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    result = sock.connect_ex(('127.0.0.1',portnum))
+    if result == 0:
+        return True
+    else:
+        return False
 
 class TaskRunner:
     def __init__(self, desc, config):
@@ -64,7 +71,6 @@ class TaskRunner:
 
     def getOutputs(self):
         raise Exception("Not implemented")
-
 
 class ShellRunner(TaskRunner):
 
@@ -183,6 +189,7 @@ class NebulaExecutor(mesos.Executor):
     def __init__(self, config):
         mesos.Executor.__init__(self)
         self.config = config
+        self.services = {}
 
     def init(self, driver, arg):
         logging.info("Starting task worker")

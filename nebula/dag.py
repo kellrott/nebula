@@ -19,9 +19,10 @@ import logging
 from glob import glob
 import subprocess
 
-from nebula.service import Docker
+from nebula.docker import Docker
 from nebula.exceptions import NotImplementedException
 from nebula.exceptions import CompileException
+from nebula.datamanager import file_uuid
 
 PENDING = 'PENDING'
 READY = 'READY'
@@ -149,8 +150,10 @@ class TaskDag(object):
 
 class TargetFile(object):
     def __init__(self, path):
-        self.path = path
-        self.uuid = str(uuid.uuid4())
+        self.path = os.path.abspath(path)
+        if not os.path.exists(self.path):
+            raise CompileException("File Not Found: %s" % (self.path))
+        self.uuid = str(file_uuid(self.path))
         self.parent_task_id = None
 
 class TaskNode(object):
@@ -262,7 +265,7 @@ class TaskNode(object):
 
     def is_complete(self):
         return self.state == DONE
-    
+
     def build_image(self, config):
         #setup the host value for docker calls
         env = dict(os.environ)
@@ -307,10 +310,10 @@ class TaskFuture:
         if name in self.task.outputs:
             a.uuid = self.task.outputs[name].uuid
         return a
-    
+
     def keys(self):
         return self.task.outputs.keys()
-    
+
     def __str__(self):
         return "TaskFuture{%s}" % (",".join(self.task.get_outputs().keys()))
 

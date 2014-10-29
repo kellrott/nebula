@@ -9,7 +9,7 @@ import logging
 from nebula.dag import TaskDag, TaskNode, DagSet, TargetFile, TargetFuture, TaskFuture
 from nebula.exceptions import CompileException
 from nebula.scheduler import Scheduler
-from nebula.service import Docker
+from nebula.docker import Docker
 import nebula.tasks
 
 
@@ -94,8 +94,6 @@ class NebulaCompile:
                 else:
                     raise Exception("Broken Input: %s" % element)
         change = True
-        print "edges", edges
-        print "elements", dag_map
         while change:
             change = False
             #find nodes that are connected but part of different DAG sets
@@ -118,7 +116,7 @@ class NebulaCompile:
                 out.append(d)
 
         return out
-    
+
     def build_images(self, config):
         config.get_workrepo().build_worker_egg()
         for v in self.target_map.values():

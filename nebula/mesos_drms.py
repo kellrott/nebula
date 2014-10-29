@@ -80,7 +80,7 @@ class NebularMesos(mesos.Scheduler):
         Build an executor request structure
         """
 
-        uri_value = "%s/resources/nebula_executor.egg" % (self.master_url)
+        uri_value = "%s/resources/nebula_worker.egg" % (self.master_url)
         logging.info("in getExecutorInfo, setting execPath = " + uri_value)
         executor = mesos_pb2.ExecutorInfo()
         executor.executor_id.value = "nebula_worker"
@@ -89,7 +89,7 @@ class NebularMesos(mesos.Scheduler):
         uri.value = uri_value
         uri.executable = True
 
-        cmd = "./nebula_executor.py -w %s --storage-dir %s" % (self.config.workdir, self.config.dist_storage_dir)
+        cmd = "python ./nebula_worker.egg -w %s --storage-dir %s" % (self.config.workdir, self.config.dist_storage_dir)
         if self.config.docker is not None:
             cmd += " --docker %s" % (self.config.docker)
 
@@ -118,6 +118,7 @@ class NebularMesos(mesos.Scheduler):
 
         if request is not None:
             task_data = request.get_task_data(self.workrepo)
+            print task_data
             task.data = json.dumps(task_data)
 
         cpus = task.resources.add()

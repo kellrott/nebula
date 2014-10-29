@@ -1,5 +1,3 @@
-
-
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not
 # use this file except in compliance with the License. You may obtain a copy of
 # the License at
@@ -14,12 +12,12 @@
 
 import os
 
-
-class Service(object):
-    def __init__(self, name):
-        self.name = name
-
-
-class GalaxyService(Service):
-    def __init__(self, name=None):
-        super(Galaxy, self).__init__(name)
+class Docker(object):
+    def __init__(self, path):
+        if os.path.exists(path):
+            path = os.path.abspath(path)
+            self.name = os.path.basename(path)
+            self.path = path
+        else:
+            self.path = None
+            self.name = path
