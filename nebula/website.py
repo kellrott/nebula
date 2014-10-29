@@ -48,8 +48,8 @@ class ResourceHandler(tornado.web.RequestHandler):
         self.scheduler = scheduler
 
     def get(self, path):
-        if path == "nebula_executor.py":
-            file = os.path.join(os.path.dirname(__file__), "nebula_executor.py")
+        if path == "nebula_executor.egg":
+            file = os.path.join(os.path.dirname(__file__), "nebula_executor.egg")
             with open(file, 'rb') as f:
                 while 1:
                     data = f.read(16384)
@@ -61,16 +61,17 @@ class ResourceHandler(tornado.web.RequestHandler):
 
 
 class ServerThread(threading.Thread):
-    def __init__(self, scheduler, port):
+    def __init__(self, scheduler, config):
         self.scheduler = scheduler
-        self.port = port
+        self.config = config
+        self.port = config.port
         self.instance = None
         threading.Thread.__init__(self)
 
     def run(self):
         application = tornado.web.Application([
             (r"/", MainHandler),
-            (r"/resources/(.*)$", ResourceHandler, {'scheduler' : self.scheduler})
+            (r"/resources/(.*)$", ResourceHandler, {'scheduler' : self.scheduler, 'image_path' : self.config.imagedir})
         ])
 
         application.listen(self.port)
@@ -91,9 +92,10 @@ class WebSite:
 
     def start(self):
         logging.info("starting website")
-        self.server = ServerThread(self.scheduler, self.config.port)
+        self.server = ServerThread(self.scheduler, self.config)
         self.server.start()
 
     def stop(self):
-        logging.info("stopping website")
-        self.server.stop()
+        if self.server is not None:
+            logging.info("stopping website")
+            self.server.stop()

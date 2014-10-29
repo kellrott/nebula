@@ -26,3 +26,13 @@ class Docker(Service):
             name = os.path.basename(path)
         self.path = path
         super(Docker, self).__init__(name)
+
+
+class Galaxy(Service):
+    def __init__(self, path, name=None):
+        path = os.path.abspath(path)
+        if name is None:
+            name = os.path.basename(path)
+        self.path = path
+        super(Galaxy, self).__init__(name)
+

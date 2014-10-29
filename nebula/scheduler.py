@@ -20,10 +20,11 @@ from nebula.jobrecord import JobRecord
 
 class Scheduler:
 
-    def __init__(self, dags, workrepo, config):
+    def __init__(self, dags, config):
         logging.debug("Initializing Scheduler")
         logging.debug("Scheduling %s dags" % (len(dags.dags)))
-        self.workrepo = workrepo
+        self.workrepo = config.get_workrepo()
+        self.datamanager = config.get_datamanager()
         self.config = config
         self.state = 'starting'
         self.queued_jobs = []
@@ -82,6 +83,8 @@ class Scheduler:
                 best_task = task
             else:
                 logging.debug("Data for task %s not local to %s" % (task.task_id, host))
+                print self.data_locality
+                print location_map
                 #TODO: Start scheduling data movement jobs if needed
 
         if best_task:

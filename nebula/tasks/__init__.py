@@ -5,7 +5,7 @@ from nebula.tasks.shell import Shell
 from nebula.tasks.nebula_task import NebulaTask
 
 __mapping__ = {
-    'Workflow' : GalaxyWorkflow,
+    'GalaxyWorkflow' : GalaxyWorkflow,
     'Shell' : Shell,
     'Python' : FunctionCall,
     'Nebula' : NebulaTask

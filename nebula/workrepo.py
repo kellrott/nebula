@@ -16,10 +16,12 @@ import os
 import json
 import tarfile
 from nebula.jobrecord import JobRecord
+from nebula.egg import write_worker_egg
 
 
 IMAGE_DIR = "images"
 JOB_DIR = "jobs"
+WORKER_EGG = "nebula_worker.egg"
 
 class WorkRepo:
     
@@ -44,6 +46,13 @@ class WorkRepo:
         meta = json.loads(meta_str)
         
         return meta #FIXME: better output parsing
+    
+    def get_image_dir(self):
+        return os.path.join(self.basedir, IMAGE_DIR)
+    
+    def build_worker_egg(self):
+        egg_path = os.path.join(self.get_image_dir(), WORKER_EGG)
+        write_worker_egg(egg_path)
     
     def get_dockerimage_path(self, name):
         return os.path.join(self.basedir, IMAGE_DIR, name + ".tar")

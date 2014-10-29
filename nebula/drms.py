@@ -3,10 +3,10 @@ import logging
 
 
 class DRMSWrapper(object):
-    def __init__(self, scheduler, workrepo, config):
+    def __init__(self, scheduler, config):
         self.scheduler = scheduler
         self.config = config
-        self.workrepo = workrepo
+        self.workrepo = config.get_workrepo()
 
     def start(self):
         raise NotImplementedException()

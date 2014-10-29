@@ -30,19 +30,20 @@ def main(args):
         docker_clean = args.docker_clean,
         dist_storage_dir = os.path.abspath(args.dist_storage),
         basedir=os.path.dirname(args.buildfile),
+        shared_dirs=list(os.path.abspath(a) for a in args.shared),
         max_servers=args.max_servers
     )
     build = NebulaCompile()
     if build.compile(args.buildfile):
         sys.stderr.write("Compile Failure")
         sys.exit(1)
-    workrepo = config.get_work_repo()
-    sched = Scheduler(build.to_dags(), workrepo, config)
+    build.build_images(config)
+    sched = Scheduler(build.to_dags(), config)
     web = WebSite(sched, config)
 
     if config.mesos is not None:
         import nebula.mesos_drms
-        drms = nebula.mesos_drms.MesosDRMS(sched, workrepo, config)
+        drms = nebula.mesos_drms.MesosDRMS(sched, config)
 
     try:
         web.start()
@@ -87,6 +88,7 @@ if __name__ == "__main__":
     parser.add_argument("--docker-clean", action="store_true", default=False)
     parser.add_argument("--dist-storage", default="/tmp/nebula-storage")
     parser.add_argument("-s", "--server", default=None)
+    parser.add_argument("--sf", "--shared", dest="shared", action="append", default=[])
     parser.add_argument("-m", "--max-servers", type=int, default=0)
     parser.add_argument("-w", "--workdir", default="/tmp")
     parser.add_argument("--docker", default=None)
@@ -95,9 +97,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.builddir is None:
-        args.buildfile = os.path.abspath("NebulaFile")
+        bfile = os.path.abspath("Nebulafile")
+        if not os.path.exists(file):
+            bfile = os.path.abspath("NebulaFile")
+        args.buildfile = bfile
     else:
-        args.buildfile = os.path.join(os.path.abspath(args.builddir), "NebulaFile")
+        bfile = os.path.join(os.path.abspath(args.builddir), "Nebulafile")
+        if not os.path.exists(bfile):
+            bfile = os.path.join(os.path.abspath(args.builddir), "NebulaFile")
+        args.buildfile = bfile
     args.workdir = os.path.abspath(args.workdir)
 
     if args.server is None:

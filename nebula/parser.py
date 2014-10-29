@@ -87,10 +87,9 @@ class NebulaCompile:
         edges = []
         for key, value in all_targets.items():
             for name, element in value.get_inputs().items():
-                if isinstance(element, TargetFile) and element.parent_task_id is not None:
-                    edges.append( (key, element.parent_task_id) )
+                if isinstance(element, TargetFile):
+                    pass
                 elif isinstance(element, TargetFuture) and element.parent_task_id is not None:
-                    print "Parent_Task_id", element, element.parent_task_id
                     edges.append( (key, element.parent_task_id) )
                 else:
                     raise Exception("Broken Input: %s" % element)
@@ -119,3 +118,8 @@ class NebulaCompile:
                 out.append(d)
 
         return out
+    
+    def build_images(self, config):
+        config.get_workrepo().build_worker_egg()
+        for v in self.target_map.values():
+            v.build_image(config)

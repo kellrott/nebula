@@ -19,17 +19,19 @@ import threading
 import mesos
 import mesos_pb2
 
+import nebula
 import nebula.drms
 
 class MesosDRMS(nebula.drms.DRMSWrapper):
 
-    def __init__(self, scheduler, workrepo, config):
-        super(MesosDRMS, self).__init__(scheduler, workrepo, config)
+    def __init__(self, scheduler, config):
+        super(MesosDRMS, self).__init__(scheduler, config)
 
         if self.config.mesos is None:
             logging.error("Mesos not configured")
             return
-        self.sched = NebularMesos(scheduler, workrepo, config)
+        self.driver_thread = None
+        self.sched = NebularMesos(scheduler, config)
         self.framework = mesos_pb2.FrameworkInfo()
         self.framework.user = "" # Have Mesos fill in the current user.
         self.framework.name = "Nebula"
@@ -43,7 +45,8 @@ class MesosDRMS(nebula.drms.DRMSWrapper):
 
     def stop(self):
         logging.info("Stoping Mesos Thread")
-        self.driver_thread.stop()
+        if self.driver_thread is not None:
+            self.driver_thread.stop()
 
 class DriverThread(threading.Thread):
     def __init__(self, driver):
@@ -60,12 +63,12 @@ class NebularMesos(mesos.Scheduler):
     """
     The GridScheduler is responsible for deploying and managing child Galaxy instances using Mesos
     """
-    def __init__(self, scheduler, workrepo, config):
+    def __init__(self, scheduler, config):
         mesos.Scheduler.__init__(self)
         self.scheduler = scheduler
         self.config = config
-        self.workrepo = workrepo
-        self.scanned_slaves = {}
+        self.workrepo = config.get_workrepo()
+        self.services = {}
         self.active_tasks = {}
         self.master_url = "http://%s:%d" % (self.config.host, self.config.port)
         logging.info("Starting Mesos scheduler")
@@ -77,7 +80,7 @@ class NebularMesos(mesos.Scheduler):
         Build an executor request structure
         """
 
-        uri_value = "%s/resources/nebula_executor.py" % (self.master_url)
+        uri_value = "%s/resources/nebula_executor.egg" % (self.master_url)
         logging.info("in getExecutorInfo, setting execPath = " + uri_value)
         executor = mesos_pb2.ExecutorInfo()
         executor.executor_id.value = "nebula_worker"
@@ -150,24 +153,14 @@ class NebularMesos(mesos.Scheduler):
                     if res.name == 'mem':
                         mem_count = int(res.scalar.value)
 
-                if offer.slave_id.value not in self.scanned_slaves:
-                    logging.info("Scanning slave %s for data" % (offer.slave_id.value))
+                work = self.scheduler.get_task(offer.slave_id.value)
+                if work is not None:
+                    logging.info("Starting work: %s" % (work))
+                    logging.debug("Offered %d cpus" % (cpu_count))
                     cpu_slice = 1
                     mem_slice = 1024
-                    task = self.getTaskInfo(offer, None, cpu_slice, mem_slice)
-                    task.data = json.dumps({'task_type' : 'fileScan', 'inputs' : None, 'task_id' : None})
+                    task = self.getTaskInfo(offer, work, cpu_slice, mem_slice)
                     tasks.append(task)
-                    self.scanned_slaves[offer.slave_id.value] = True
-                else:
-                    work = self.scheduler.get_task(offer.slave_id.value)
-                    if work is not None:
-                        work.init_service(self.config)
-                        logging.info("Starting work: %s" % (work))
-                        logging.debug("Offered %d cpus" % (cpu_count))
-                        cpu_slice = 1
-                        mem_slice = 1024
-                        task = self.getTaskInfo(offer, work, cpu_slice, mem_slice)
-                        tasks.append(task)
             status = driver.launchTasks(offer.id, tasks)
 
     def statusUpdate(self, driver, status):
@@ -191,4 +184,4 @@ class NebularMesos(mesos.Scheduler):
             #print status.data
 
     def getFrameworkName(self, driver):
-        return "GalaxyGrid"
+        return "Nebula"

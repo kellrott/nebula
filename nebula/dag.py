@@ -151,7 +151,7 @@ class TargetFile(object):
     def __init__(self, path):
         self.path = path
         self.uuid = str(uuid.uuid4())
-        self.parent_task = None
+        self.parent_task_id = None
 
 class TaskNode(object):
     def __init__(self, task_id, inputs=None, outputs=None, task_type=None, dag_id=None, docker=None):
@@ -197,14 +197,17 @@ class TaskNode(object):
         for k, v in inputs.items():
             if isinstance(v, TargetFuture):
                 self.inputs[k] = v
+            elif isinstance(v, TargetFile):
+                self.inputs[k] = v
             else:
+                raise Exception("Not implemented")
                 self.inputs[k] = TargetFuture(v['task_id'], v['uuid'])
 
     def init_outputs(self, outputs):
         for k, v in outputs.items():
             if not isinstance(v, basestring):
                 raise CompileException("Bad output path")
-            t = TargetFile(v)
+            t = TargetFuture(self.task_id)
             t.parent_task = self
             self.outputs[k] = t
 
@@ -239,7 +242,8 @@ class TaskNode(object):
             raise Exception("Node DAG parent is None")
         out = {}
         for a in self.get_inputs().values():
-            out[a.parent_task_id] = self.dag.tasks[a.parent_task_id]
+            if a.parent_task_id is not None:
+                out[a.parent_task_id] = self.dag.tasks[a.parent_task_id]
         return out.values()
 
     def is_active_task(self):
@@ -258,26 +262,38 @@ class TaskNode(object):
 
     def is_complete(self):
         return self.state == DONE
+    
+    def build_image(self, config):
+        #setup the host value for docker calls
+        env = dict(os.environ)
+        if config.docker is not None:
+            env['DOCKER_HOST'] = config.docker
 
-    def init_service(self, config):
-        workrepo = config.get_work_repo()
+        workrepo = config.get_workrepo()
         sha1 = workrepo.get_dockerimage_sha1(self.docker.name)
         if sha1 is None:
             logging.info("Missing Docker Image: " + self.docker.name)
-            if self.docker.path is not None:
+            if self.docker.path is not None and os.path.exists(self.docker.path):
                 logging.info("Running Docker Build")
                 if config.docker_clean:
                     cache = "--no-cache"
                 else:
                     cache = ""
                 cmd = "docker build %s -t %s %s" % (cache, self.docker.name, self.docker.path)
-                env = dict(os.environ)
-                if config.docker is not None:
-                    env['DOCKER_HOST'] = config.docker
                 subprocess.check_call(cmd, shell=True, env=env)
                 logging.info("Saving Docker Image: " + self.docker.name)
                 cmd = "docker save %s > %s" % (self.docker.name, workrepo.get_dockerimage_path(self.docker.name))
                 subprocess.check_call(cmd, shell=True, env=env)
+            else:
+                logging.info("Pulling Docker Image")
+                cmd = "docker pull %s" % (self.docker.name)
+                logging.info(cmd)
+                subprocess.check_call(cmd, shell=True, env=env)
+                logging.info("Saving Docker Image: " + self.docker.name)
+                cmd = "docker save %s > %s" % (self.docker.name, workrepo.get_dockerimage_path(self.docker.name))
+                logging.info(cmd)
+                subprocess.check_call(cmd, shell=True, env=env)
+
 
 class TaskFuture:
     """
