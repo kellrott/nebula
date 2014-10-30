@@ -12,8 +12,13 @@ import requests
 import tempfile
 import string
 import json
+import shutil
 
 from glob import glob
+
+class RequestException(Exception):
+    def __init__(self, message):
+        self.message = message
 
 def which(file):
     for path in os.environ["PATH"].split(":"):
@@ -87,7 +92,7 @@ def call_docker_kill(
 
     logging.info("executing: " + " ".join(cmd))
     subprocess.check_call(cmd, close_fds=True, env=sys_env, stdout=subprocess.PIPE)
-    
+
 def call_docker_rm(
     name=None,
     host=None
@@ -134,10 +139,9 @@ def call_docker_ps(
 
 
 def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=None,
-    lib_data=None, tool_data=None, metadata_suffix=None, tool_dir=None,
+    lib_data=[], auto_add=False, tool_data=None, metadata_suffix=None, tool_dir=None,
     work_dir="/tmp", tool_docker=False,
     key="HSNiugRFvgT574F43jZ7N9F3"):
-
 
     env = {
         "GALAXY_CONFIG_CHECK_MIGRATE_TOOLS" : "False",
@@ -161,28 +165,32 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
         with open( os.path.join(config_dir, "import_tool_conf.xml"), "w" ) as handle:
             handle.write(TOOL_IMPORT_CONF)
         env['GALAXY_CONFIG_TOOL_CONFIG_FILE'] = "/config/import_tool_conf.xml,config/tool_conf.xml.main"
-    
+
     data_load = []
     meta_data = {}
-    if lib_data is not None:
+    lib_mapping = {}
+    for i, ld in enumerate(lib_data):
         env['GALAXY_CONFIG_ALLOW_LIBRARY_PATH_PASTE'] = "True"
-        lpath = os.path.abspath(lib_data)
-        mounts[lpath] = "/export/lib_data"
-        for a in glob(os.path.join(lpath, "*")):
-            if metadata_suffix is None or not a.endswith(metadata_suffix):
-                if os.path.isfile(a):
-                    data_load.append( os.path.join("/export/lib_data", os.path.relpath(a, lpath) ) )
-            elif metadata_suffix is not None:
-                file = a[:-len(metadata_suffix)]
-                if os.path.exists(file):
-                    try:
-                        with open(a) as handle:
-                            txt = handle.read()
-                            md = json.loads(txt)
-                            meta_data[ os.path.join("/export/lib_data", os.path.relpath(file, lpath) ) ] = md
-                            print "metadata for", file
-                    except:
-                        pass
+        lpath = os.path.abspath(ld)
+        dpath = "/export/lib_data_%s" % (i)
+        mounts[lpath] = dpath
+        lib_mapping[lpath] = dpath
+        if auto_add:
+            for a in glob(os.path.join(lpath, "*")):
+                if metadata_suffix is None or not a.endswith(metadata_suffix):
+                    if os.path.isfile(a):
+                        data_load.append( os.path.join(dpath, os.path.relpath(a, lpath) ) )
+                elif metadata_suffix is not None:
+                    file = a[:-len(metadata_suffix)]
+                    if os.path.exists(file):
+                        try:
+                            with open(a) as handle:
+                                txt = handle.read()
+                                md = json.loads(txt)
+                                meta_data[ os.path.join(dpath, os.path.relpath(file, lpath) ) ] = md
+                                logging.debug("Found metadata for %s " % (file))
+                        except:
+                            pass
 
     if tool_docker:
         mounts[config_dir] = "/config"
@@ -220,19 +228,33 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
             pass
         except requests.exceptions.Timeout:
             pass
-    
+
     rg = RemoteGalaxy("http://%s:%s"  % (host, port), 'admin')
     library_id = rg.create_library("Imported")
-    folder_id = rg.library_find(library_id, "/")['id']
+    folder_id = rg.library_find_contents(library_id, "/")['id']
     for data in data_load:
         logging.info("Loading: %s" % (data))
         md = {}
         if data in meta_data:
             md = meta_data[data]
-        print rg.library_paste_file(library_id, folder_id, os.path.basename(data), data, uuid=md.get('uuid', None))
+        rg.library_paste_file(library_id, folder_id, os.path.basename(data), data, uuid=md.get('uuid', None))
+
+    with open(os.path.join(config_dir, "config.json"), "w") as handle:
+        handle.write(json.dumps({
+            'docker_tag' : docker_tag,
+            'port' : port,
+            'lib_data' : list(os.path.abspath(a) for a in lib_data),
+            'host' : host,
+            'tool_dir' : os.path.abspath(tool_dir) if tool_dir is not None else None,
+            'tool_data' : os.path.abspath(tool_data) if tool_dir is not None else None,
+            'metadata_suffix' : metadata_suffix,
+            'tool_docker' : tool_docker,
+            'key' : key,
+            'lib_mapping' : lib_mapping
+        }))
 
 class RemoteGalaxy(object):
-    
+
     def __init__(self, url, api_key):
         self.url = url
         self.api_key = api_key
@@ -267,11 +289,20 @@ class RemoteGalaxy(object):
         library_id = library['id']
         return library_id
     
-    def library_list(self, library_id):
+    def library_find(self, name):
+        for d in self.library_list():
+            if d['name'] == name:
+                return d
+        return None
+
+    def library_list(self):
+        return self.get("/api/libraries")
+
+    def library_list_contents(self, library_id):
         return self.get("/api/libraries/%s/contents" % library_id)
-    
-    def library_find(self, library_id, name):
-        for a in self.library_list(library_id):
+
+    def library_find_contents(self, library_id, name):
+        for a in self.library_list_contents(library_id):
             if a['name'] == name:
                 return a
         return None
@@ -296,6 +327,10 @@ class RemoteGalaxy(object):
 
 
 def run_down(name, host=None, rm=False, work_dir="/tmp"):
+    config_dir = os.path.join(work_dir, "warpdrive_%s" % (name))
+    if not os.path.exists(config_dir):
+        print "Config not found"
+        return
     try:
         call_docker_kill(
             name, host=host
@@ -306,9 +341,7 @@ def run_down(name, host=None, rm=False, work_dir="/tmp"):
         call_docker_rm(
             name, host=host
         )
-        config_dir = os.path.join(work_dir, "warpdrive_%s" % (name))
-        if os.path.exists(config_dir):
-            shutil.rmtree(config_dir)
+        shutil.rmtree(config_dir)
 
 
 def run_status(name="galaxy", host=None):
@@ -339,6 +372,44 @@ def run_status(name="galaxy", host=None):
                 found = True
     if not found:
         print "NotFound"
+
+
+def run_add(name="galaxy", work_dir="/tmp", files=[]):
+    config_dir = os.path.join(work_dir, "warpdrive_%s" % (name))
+    if not os.path.exists(config_dir):
+        print "Config not found"
+        return
+    
+    with open(os.path.join(config_dir, "config.json")) as handle:
+        txt = handle.read()
+        config = json.loads(txt)
+
+    data_load = []
+    for f in files:
+        fpath = os.path.abspath(f)
+        if os.path.isfile(fpath):
+            mapping = None
+            for ppath, dpath in config['lib_mapping'].items():
+                if mapping is None and fpath.startswith(ppath):
+                    mapping = os.path.join(dpath, os.path.relpath(fpath, ppath))
+            if mapping is None:
+                raise RequestException("File %s not in mounted lib directories" % (fpath))
+            data_load.append(mapping)
+
+    rg = RemoteGalaxy("http://%s:%s" % (config['host'], config['port']), 'admin')
+    library_id = rg.library_find("Imported")['id']
+    folder_id = rg.library_find_contents(library_id, "/")['id']
+    
+    for d in data_load:
+        md = {}
+        if config['metadata_suffix'] is not None:
+            if os.path.exists(d + config['metadata_suffix']):
+                with open(d+config['metadata_suffix']) as handle:
+                    txt = handle.read()
+                    md = json.loads(txt)
+        logging.info("Adding %s" % (d))
+        rg.library_paste_file(library_id, folder_id, os.path.basename(name), d, uuid=md.get('uuid', None))
+
 
 
 TOOL_IMPORT_CONF = """<?xml version='1.0' encoding='utf-8'?>
@@ -391,7 +462,8 @@ if __name__ == "__main__":
     parser_up.add_argument("-p", "--port", default="8080")
     parser_up.add_argument("-m", "--metadata", dest="metadata_suffix", default=None)
     parser_up.add_argument("-n", "--name", default="galaxy")
-    parser_up.add_argument("-l", "--lib-data", default=None)
+    parser_up.add_argument("-l", "--lib-data", action="append", default=[])
+    parser_up.add_argument("-a", "--auto-add", action="store_true", default=False)
     parser_up.add_argument("-c", "--child", dest="tool_docker", action="store_true", help="Launch jobs in child containers", default=False)
     parser_up.add_argument("--key", default="HSNiugRFvgT574F43jZ7N9F3")
     parser_up.add_argument("--host", default=None)
@@ -409,17 +481,27 @@ if __name__ == "__main__":
     parser_status.add_argument("--host", default=None)
     parser_status.set_defaults(func=run_status)
 
+    parser_add = subparsers.add_parser('add')
+    parser_add.add_argument("-n", "--name", default="galaxy")
+    parser_add.add_argument("-w", "--work-dir", default="/tmp")
+    parser_add.add_argument("files", nargs="+")
+    parser_add.set_defaults(func=run_add)
+
     args = parser.parse_args()
 
     if args.v:
         logging.basicConfig(level=logging.INFO)
     if args.vv:
         logging.basicConfig(level=logging.DEBUG)
-    
+
     func = args.func
     kwds=vars(args)
-    del kwds['v'] 
+    del kwds['v']
     del kwds['vv']
     del kwds['func']
-    
-    sys.exit(func(**kwds))
+
+    try:
+        sys.exit(func(**kwds))
+    except RequestException, e:
+        sys.stderr.write("%s\n" % (e.message))
+        
