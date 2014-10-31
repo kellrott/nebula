@@ -1,7 +1,9 @@
 
-
+import logging
 import json
 from nebula.service import GalaxyService, TaskJob, ServiceFactory
+
+logging.basicConfig(level=logging.DEBUG)
 
 with open("examples/simple_galaxy/SimpleWorkflow.ga") as handle:
     workflow = json.loads(handle.read())
@@ -15,7 +17,7 @@ task = TaskJob({
     'docker' : 'galaxy'
 })
 
-service = ServiceFactory(service_name=task.service_name, lib_data=['examples/simple_galaxy/'])
+service = ServiceFactory(service_name=task.service_name, lib_data=['examples/simple_galaxy/'], docker_tag="galaxy")
 
 service.start()
 service.submit(task)

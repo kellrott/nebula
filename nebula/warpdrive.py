@@ -290,7 +290,7 @@ class RemoteGalaxy(object):
         library = self.post('/api/libraries', lib_create_data)
         library_id = library['id']
         return library_id
-    
+
     def library_find(self, name):
         for d in self.library_list():
             if d['name'] == name:
@@ -308,9 +308,32 @@ class RemoteGalaxy(object):
             if a['name'] == name:
                 return a
         return None
-    
+
     def add_workflow(self, wf):
         self.post("/api/workflows/upload", { 'workflow' : wf } )
+
+    def get_workflow(self, wid):
+        return self.get("/api/workflows/%s" % (wid))
+
+    def call_workflow(self, workflow_id, inputs, params):
+        wf_desc = self.get_workflow(workflow_id)
+        print json.dumps(wf_desc, indent=4)
+        dsmap = {}
+        for step_id, step_desc in wf_desc['steps'].iteritems():
+            if step_desc['type'] == 'data_input':
+                if step_id in inputs:
+                    dsmap[step_id] = inputs[step_id]
+                elif str(step_id) in inputs:
+                    dsmap[step_id] = inputs[str(step_id)]
+                elif step_desc["tool_inputs"]["name"] in inputs:
+                    dsmap[step_id] = inputs[step_desc["tool_inputs"]["name"]]
+
+        data = {
+            'workflow_id' : workflow_uuid,
+            'ds_map' : dsmap
+        }
+        return self.port("/api/workflows", data )
+
 
     def library_paste_file(self, library_id, library_folder_id, name, datapath, uuid=None, metadata=None):
         datapath = os.path.abspath(datapath)
@@ -389,7 +412,7 @@ def run_add(name="galaxy", work_dir="/tmp", files=[]):
     if not os.path.exists(config_dir):
         print "Config not found"
         return
-    
+
     with open(os.path.join(config_dir, "config.json")) as handle:
         txt = handle.read()
         config = json.loads(txt)
@@ -409,7 +432,7 @@ def run_add(name="galaxy", work_dir="/tmp", files=[]):
     rg = RemoteGalaxy("http://%s:%s" % (config['host'], config['port']), 'admin')
     library_id = rg.library_find("Imported")['id']
     folder_id = rg.library_find_contents(library_id, "/")['id']
-    
+
     for d in data_load:
         md = {}
         if config['metadata_suffix'] is not None:

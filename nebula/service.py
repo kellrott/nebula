@@ -44,11 +44,11 @@ class Service(Thread):
         self.queue_lock = RLock()
         self.queue = []
         self.running = True
-    
+
     def submit(self, job):
         with self.queue_lock:
             self.queue.append(job)
-    
+
     def stop(self):
         self.running = False
 
@@ -60,13 +60,13 @@ class TaskJob:
 
     def set_running(self):
         pass
-    
+
     def set_done(self):
         pass
-    
+
     def set_error(self):
         pass
-    
+
     def get_inputs(self):
         return self.task_data['inputs']
 
@@ -75,7 +75,7 @@ class GalaxyService(Service):
     def __init__(self, **kwds):
         super(GalaxyService, self).__init__('galaxy')
         self.config = kwds
-    
+
     def run(self):
         rg = run_up( **self.config )
         library_id = rg.library_find("Imported")['id']
@@ -90,23 +90,9 @@ class GalaxyService(Service):
                     for k, v in job.get_inputs().items():
                         print rg.library_paste_file(library_id, folder_id, v['uuid'], v['path'], uuid=v['uuid'])
                     rg.add_workflow(job.task_data['workflow'])
+                    rg.call_workflow(job.task_data['workflow']['uuid'], inputs=job.get_inputs(), params={})
         run_down(rm=True)
 
-
-class TaskRunner:
-    def __init__(self, desc, config):
-        self.desc = desc
-        self.config = config
-
-    def start(self):
-        #FIXME: put wrapper code here
-        self.run(self.desc)
-
-    def run(self, data):
-        raise Exception("Not implemented")
-
-    def getOutputs(self):
-        raise Exception("Not implemented")
 
 class ShellService(Service):
 
@@ -149,7 +135,7 @@ class ShellService(Service):
         return self.outputs
 
 
-class FileScanner(TaskRunner):
+class FileScanner(Service):
 
     def run(self, data):
         out = {}
@@ -172,7 +158,7 @@ service_map = {
 config_defaults= {
     'galaxy' : {
         'name' : "nebula_galaxy",
-        'port' :19999,
+        'port' : 19999,
         'metadata_suffix' : ".json"
     }
 
@@ -183,4 +169,3 @@ def ServiceFactory(service_name, **kwds):
     d.update(config_defaults[service_name])
     d.update(kwds)
     return service_map[service_name](**d)
-
