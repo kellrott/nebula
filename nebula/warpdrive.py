@@ -329,10 +329,11 @@ class RemoteGalaxy(object):
                     dsmap[step_id] = inputs[step_desc["tool_inputs"]["name"]]
 
         data = {
-            'workflow_id' : workflow_uuid,
+            'workflow_id' : workflow_id,
             'ds_map' : dsmap
         }
-        return self.port("/api/workflows", data )
+        #return self.post("/api/workflows", data )
+        return self.post("/api/workflows/%s/usage" % (workflow_id), data )
 
 
     def library_paste_file(self, library_id, library_folder_id, name, datapath, uuid=None, metadata=None):
