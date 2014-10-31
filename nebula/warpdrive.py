@@ -179,7 +179,7 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
             for a in glob(os.path.join(lpath, "*")):
                 if metadata_suffix is None or not a.endswith(metadata_suffix):
                     if os.path.isfile(a):
-                        data_load.append( os.path.join(dpath, os.path.relpath(a, lpath) ) )
+                        data_load.append( a )
                 elif metadata_suffix is not None:
                     file = a[:-len(metadata_suffix)]
                     if os.path.exists(file):
@@ -229,7 +229,7 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
         except requests.exceptions.Timeout:
             pass
 
-    rg = RemoteGalaxy("http://%s:%s"  % (host, port), 'admin')
+    rg = RemoteGalaxy("http://%s:%s"  % (host, port), 'admin', path_mapping=lib_mapping)
     library_id = rg.create_library("Imported")
     folder_id = rg.library_find_contents(library_id, "/")['id']
     for data in data_load:
@@ -252,12 +252,14 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
             'key' : key,
             'lib_mapping' : lib_mapping
         }))
+    return rg
 
 class RemoteGalaxy(object):
 
-    def __init__(self, url, api_key):
+    def __init__(self, url, api_key, path_mapping={}):
         self.url = url
         self.api_key = api_key
+        self.path_mapping = path_mapping
 
     def get(self, path):
         c_url = self.url + path
@@ -306,8 +308,16 @@ class RemoteGalaxy(object):
             if a['name'] == name:
                 return a
         return None
+    
+    def add_workflow(self, wf):
+        self.post("/api/workflows/upload", { 'workflow' : wf } )
 
     def library_paste_file(self, library_id, library_folder_id, name, datapath, uuid=None, metadata=None):
+        datapath = os.path.abspath(datapath)
+        for ppath, dpath in self.path_mapping.items():
+            if datapath.startswith(ppath):
+                datapath = os.path.join(dpath, os.path.relpath(datapath, ppath))
+                break
         data = {}
         data['folder_id'] = library_folder_id
         data['file_type'] = 'auto'
@@ -501,7 +511,8 @@ if __name__ == "__main__":
     del kwds['func']
 
     try:
-        sys.exit(func(**kwds))
+        func(**kwds)
+        sys.exit(0)
     except RequestException, e:
         sys.stderr.write("%s\n" % (e.message))
-        
+        sys.exit(1)

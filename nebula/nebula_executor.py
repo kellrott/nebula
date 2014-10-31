@@ -32,157 +32,46 @@ import hashlib
 import shutil
 from glob import glob
 
-from nebula.service import GalaxyService
+from nebula.service import TaskJob, GalaxyService, ShellService
 
 logging.basicConfig(level=logging.INFO)
 
-
 uuid4hex = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', re.I)
 
-def which(file):
-    for path in os.environ["PATH"].split(":"):
-        p = os.path.join(path, file)
-        if os.path.exists(p):
-            return p
 
-
-def port_active(portnum):
-    """
-    Check if a port is active or not (to prevent trying to allocate used ports)
-    """
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    result = sock.connect_ex(('127.0.0.1',portnum))
-    if result == 0:
-        return True
-    else:
-        return False
-
-class TaskRunner:
-    def __init__(self, desc, config):
-        self.desc = desc
-        self.config = config
-
-    def start(self):
-        #FIXME: put wrapper code here
-        self.run(self.desc)
-
-    def run(self, data):
-        raise Exception("Not implemented")
-
-    def getOutputs(self):
-        raise Exception("Not implemented")
-
-class ShellRunner(TaskRunner):
-
-    def run(self, data):
-        script = data['script']
-        docker_image = data.get('docker', 'base')
-        self.workdir = self.config.workdir
-        self.execdir = os.path.abspath(tempfile.mkdtemp(dir=self.workdir, prefix="nebula_"))
-
-        with open(os.path.join(self.execdir, "run.sh"), "w") as handle:
-            handle.write(script)
-
-        docker_path = which('docker')
-        if docker_path is None:
-            raise Exception("Cannot find docker")
-
-        cmd = [
-            docker_path, "run", "--rm", "-u", str(os.geteuid()),
-            "-v", "%s:/work" % self.execdir, "-w", "/work", docker_image,
-            "/bin/bash", "/work/run.sh"
-        ]
-        env = dict(os.environ)
-        if self.config.docker is not None:
-            env['DOCKER_HOST'] = self.config.docker
-
-        logging.info("executing: " + " ".join(cmd))
-        proc = subprocess.Popen(cmd, close_fds=True, env=env)
-        proc.communicate()
-        if proc.returncode != 0:
-            raise Exception("Call Failed: %s" % (cmd))
-
-        self.outputs = {}
-        for k, v in data['outputs'].items():
-            self.outputs[k] = {
-                'store_path' : os.path.join(self.execdir, v['path']),
-                'uuid' : v['uuid']
-            }
-
-    def getOutputs(self):
-        return self.outputs
-
-
-class FileScanner(TaskRunner):
-
-    def run(self, data):
-        out = {}
-        logging.info("Scanning for files %s" % (self.config.storage_dir))
-        for a in glob(os.path.join(self.config.storage_dir, "*")):
-            name = os.path.basename(a)
-            if uuid4hex.match(name):
-                out[name] = {'uuid' : name, 'store_path' : os.path.abspath(a)}
-        self.outputs = out
-
-    def getOutputs(self):
-        return self.outputs
-
-
-task_runner_map = {
-    'shell' : ShellRunner,
-    'fileScan' : FileScanner
-}
-
-class SubTask(object):
+class MesosJob(TaskJob):
     def __init__(self, driver, task, config):
         self.driver = driver
         self.task = task
         self.config = config
+        self.task_data = json.loads(self.task.data)
+        self.service_name = self.task_data['service']
 
-    def run(self):
-        logging.info("Running Nebula task: %s" % (self.task.task_id.value))
+    def set_running(self):
+        logging.info("Running Nebula job: %s" % (self.task.task_id.value))
         nebula_task_id = None
         try:
-            obj = json.loads(self.task.data)
-            if 'task_type' in obj and obj['task_type'] in task_runner_map:
-                nebula_task_id = str(obj['task_id'])
-                update = mesos_pb2.TaskStatus()
-                update.task_id.value = self.task.task_id.value
-                update.state = mesos_pb2.TASK_RUNNING
-                update.data = nebula_task_id
-                self.driver.sendStatusUpdate(update)
-                cl = task_runner_map[obj['task_type']]
-                inst = cl(obj, self.config)
-                inst.start()
-                outputs = {}
-                for k, v in inst.getOutputs().items():
-                    new_path = os.path.join(self.config.storage_dir, v['uuid'])
-                    shutil.move(v['store_path'], new_path)
-                    outputs[k] = {
-                        'uuid' : v['uuid'],
-                        'store_path' : new_path
-                    }
-                update = mesos_pb2.TaskStatus()
-                update.task_id.value = self.task.task_id.value
-                update.data = json.dumps({
-                    'task_id' : nebula_task_id,
-                    'task_type' : obj['task_type'],
-                    'status' : "DONE",
-                    'inputs' : obj['inputs'],
-                    'outputs' : outputs
-                })
-                update.state = mesos_pb2.TASK_FINISHED
-                self.driver.sendStatusUpdate(update)
-            else:
-                raise Exception("Bad task request")
-
-        except Exception, e:
-            traceback.print_exc()
+            nebula_task_id = str(self.task_data['task_id'])
             update = mesos_pb2.TaskStatus()
             update.task_id.value = self.task.task_id.value
+            update.state = mesos_pb2.TASK_RUNNING
             update.data = nebula_task_id
-            update.state = mesos_pb2.TASK_FAILED
             self.driver.sendStatusUpdate(update)
+    
+    def set_done(self):
+        logging.info("Finished Nebula job: %s" % (self.task.task_id.value))
+        update = mesos_pb2.TaskStatus()
+        update.task_id.value = self.task.task_id.value
+        update.data = str(self.task_data['task_id'])
+        update.state = mesos_pb2.TASK_FINISHED
+        self.driver.sendStatusUpdate(update)
+    
+    def set_error(self):
+        update = mesos_pb2.TaskStatus()
+        update.task_id.value = self.task.task_id.value
+        update.data = str(self.task_data['task_id'])
+        update.state = mesos_pb2.TASK_FAILED
+        self.driver.sendStatusUpdate(update)
 
 
 class NebulaExecutor(mesos.Executor):
@@ -196,8 +85,12 @@ class NebulaExecutor(mesos.Executor):
 
     def launchTask(self, driver, task):
         logging.debug( "Running task %s" % task.task_id.value )
-        subtask = SubTask(driver, task, self.config)
-        threading.Thread(target=subtask.run).start()
+        job = TaskJob(driver, task, self.config)
+        if job.service_name not in self.services:
+            s = service_map[job.service_name]()
+            self.services[job.service_name] = s
+            s.start()
+        self.services[job.service_name].submit(job)
 
     def killTask(self, driver, task_id):
         logging.debug( "Killing task %s" % task_id.value )
