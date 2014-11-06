@@ -14,6 +14,7 @@
 
 import os
 import time
+import json
 
 from nebula.warpdrive import run_up, run_add, run_down
 from threading import Thread, RLock
@@ -52,6 +53,9 @@ class Service(Thread):
     def stop(self):
         self.running = False
 
+    def status(self, job_id):
+        raise Exception("Service not implemented")
+
 
 class TaskJob:
     def __init__(self, task_data):
@@ -75,6 +79,7 @@ class GalaxyService(Service):
     def __init__(self, **kwds):
         super(GalaxyService, self).__init__('galaxy')
         self.config = kwds
+        self.invocation_list = []
 
     def run(self):
         rg = run_up( **self.config )
@@ -83,14 +88,40 @@ class GalaxyService(Service):
 
         print "Galaxy Running"
         while self.running:
-            time.sleep(1)
+            time.sleep(3)
             with self.queue_lock:
                 if len(self.queue):
                     job = self.queue.pop()
+                    wids = []
                     for k, v in job.get_inputs().items():
-                        print rg.library_paste_file(library_id, folder_id, v['uuid'], v['path'], uuid=v['uuid'])
+                        nli = rg.library_paste_file(library_id, folder_id, v['uuid'], v['path'], uuid=v['uuid'])
+                        wids.append(nli['id'])
+
+                    #wait for the uploading of the files to finish
+                    while True:
+                        done = True
+                        for w in wids:
+                            d = rg.library_get_contents(library_id, w)
+                            if d['state'] != 'ok':
+                                print d['state']
+                                done = False
+                        if done:
+                            break
+                        time.sleep(2)
+
                     rg.add_workflow(job.task_data['workflow'])
-                    rg.call_workflow(job.task_data['workflow']['uuid'], inputs=job.get_inputs(), params={})
+                    inputs = {}
+                    for k, v in job.get_inputs().items():
+                        inputs[k] = {
+                            'src' : "uuid",
+                            'id' : v['uuid']
+                        }
+                    invc = rg.call_workflow(job.task_data['workflow']['uuid'], inputs=inputs, params={})
+                    print invc
+                    self.invocation_list.append( (invc['workflow_id'], invc['id']) )
+
+                for workflow, invc in self.invocation_list:
+                    print rg.get_workflow_invocation( workflow, invc )
         run_down(rm=True)
 
 

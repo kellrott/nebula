@@ -309,6 +309,9 @@ class RemoteGalaxy(object):
                 return a
         return None
 
+    def library_get_contents(self, library_id, ldda_id):
+        return self.get("/api/libraries/%s/contents/%s" % (library_id, ldda_id))
+
     def add_workflow(self, wf):
         self.post("/api/workflows/upload", { 'workflow' : wf } )
 
@@ -332,8 +335,11 @@ class RemoteGalaxy(object):
             'workflow_id' : workflow_id,
             'ds_map' : dsmap
         }
-        #return self.post("/api/workflows", data )
-        return self.post("/api/workflows/%s/usage" % (workflow_id), data )
+        return self.post("/api/workflows", data )
+        #return self.post("/api/workflows/%s/usage" % (workflow_id), data )
+
+    #def get_workflow_invocation( self, workflow_id, invc_id ):
+    #    return self.get("/api/workflows/%s/usage/%s" % (workflow_id, invc_id))
 
 
     def library_paste_file(self, library_id, library_folder_id, name, datapath, uuid=None, metadata=None):
@@ -356,7 +362,7 @@ class RemoteGalaxy(object):
             data['extended_metadata'] = metadata
         data['filesystem_paths'] = datapath
         libset = self.post("/api/libraries/%s/contents" % library_id, data)
-        return libset
+        return libset[0]
 
 
 

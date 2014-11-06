@@ -1,61 +1,69 @@
 {
-    "a_galaxy_workflow": "true", 
-    "annotation": "", 
-    "format-version": "0.1", 
-    "name": "SimpleWorkflow", 
+    "a_galaxy_workflow": "true",
+    "annotation": "",
+    "format-version": "0.1",
+    "name": "SimpleWorkflow",
     "steps": {
         "0": {
-            "annotation": "", 
-            "id": 0, 
-            "input_connections": {}, 
+            "annotation": "",
+            "id": 0,
+            "input_connections": {},
             "inputs": [
                 {
-                    "description": "", 
+                    "description": "",
                     "name": "input_file"
                 }
-            ], 
-            "name": "Input dataset", 
-            "outputs": [], 
+            ],
+            "name": "Input dataset",
+            "outputs": [],
             "position": {
-                "left": 166, 
+                "left": 166,
                 "top": 194
-            }, 
-            "tool_errors": null, 
-            "tool_id": null, 
-            "tool_state": "{\"name\": \"input_file\"}", 
-            "tool_version": null, 
-            "type": "data_input", 
+            },
+            "tool_errors": null,
+            "tool_id": null,
+            "tool_state": "{\"name\": \"input_file\"}",
+            "tool_version": null,
+            "type": "data_input",
             "user_outputs": []
-        }, 
+        },
         "1": {
-            "annotation": "", 
-            "id": 1, 
+            "annotation": "",
+            "id": 1,
             "input_connections": {
                 "input1": {
-                    "id": 0, 
+                    "id": 0,
                     "output_name": "output"
                 }
-            }, 
-            "inputs": [], 
-            "name": "Secure Hash / Message Digest", 
+            },
+            "inputs": [],
+            "name": "Secure Hash / Message Digest",
             "outputs": [
                 {
-                    "name": "out_file1", 
+                    "name": "out_file1",
                     "type": "tabular"
                 }
-            ], 
+            ],
             "position": {
-                "left": 480, 
+                "left": 480,
                 "top": 208
-            }, 
-            "post_job_actions": {}, 
-            "tool_errors": null, 
-            "tool_id": "secure_hash_message_digest", 
-            "tool_state": "{\"__page__\": 0, \"__rerun_remap_job_id__\": null, \"input1\": \"null\", \"algorithms\": \"\\\"sha1\\\"\"}", 
-            "tool_version": "0.0.1", 
-            "type": "tool", 
+            },
+            "post_job_actions": {
+                "RenameDatasetActionout_file1": {
+                    "action_arguments": {
+                        "newname": "hashed_output"
+                    },
+                    "action_type": "RenameDatasetAction",
+                    "output_name": "out_file1"
+                }
+            },
+            "tool_errors": null,
+            "tool_id": "secure_hash_message_digest",
+            "tool_state": "{\"__page__\": 0, \"__rerun_remap_job_id__\": null, \"input1\": \"null\", \"algorithms\": \"\\\"sha1\\\"\"}",
+            "tool_version": "0.0.1",
+            "type": "tool",
             "user_outputs": []
         }
-    }, 
+    },
     "uuid": "c72ac9cb-0f91-4c62-b5de-223c0a485551"
 }

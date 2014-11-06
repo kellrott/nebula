@@ -148,12 +148,16 @@ class TaskDag(object):
     def __str__(self):
         return "[%s]" % (",".join(str(a) for a in self.tasks.values()))
 
-class TargetFile(object):
+class Target(object):
+    def __init__(self, uuid):
+        self.uuid = uuid
+
+class TargetFile(Target):
     def __init__(self, path):
         self.path = os.path.abspath(path)
         if not os.path.exists(self.path):
             raise CompileException("File Not Found: %s" % (self.path))
-        self.uuid = str(file_uuid(self.path))
+        super(TargetFile,self).__init__(str(file_uuid(self.path)))
         self.parent_task_id = None
 
 class TaskNode(object):
@@ -198,9 +202,7 @@ class TaskNode(object):
 
     def init_inputs(self, inputs):
         for k, v in inputs.items():
-            if isinstance(v, TargetFuture):
-                self.inputs[k] = v
-            elif isinstance(v, TargetFile):
+            if isinstance(v, Target):
                 self.inputs[k] = v
             else:
                 raise Exception("Not implemented")
@@ -208,11 +210,15 @@ class TaskNode(object):
 
     def init_outputs(self, outputs):
         for k, v in outputs.items():
-            if not isinstance(v, basestring):
+            if isinstance(v, TargetFuture):
+                v.parent_task = self
+                self.outputs[k] = v
+            elif isinstance(v, basestring):
+                t = TargetFuture(self.task_id)
+                t.parent_task = self
+                self.outputs[k] = t
+            else:
                 raise CompileException("Bad output path")
-            t = TargetFuture(self.task_id)
-            t.parent_task = self
-            self.outputs[k] = t
 
     def get_input_data(self):
         out = {}
@@ -223,7 +229,7 @@ class TaskNode(object):
     def get_output_data(self):
         out = {}
         for k, v in self.get_outputs().items():
-            out[k] = { 'uuid' : v.uuid, 'path' : v.path }
+            out[k] = { 'uuid' : v.uuid }
         return out
 
     def __str__(self):
@@ -298,7 +304,7 @@ class TaskNode(object):
                 subprocess.check_call(cmd, shell=True, env=env)
 
 
-class TaskFuture:
+class TaskFuture(object):
     """
     A task that will be run in the future
     """
@@ -318,7 +324,7 @@ class TaskFuture:
         return "TaskFuture{%s}" % (",".join(self.task.get_outputs().keys()))
 
 
-class TargetFuture:
+class TargetFuture(object):
     """
     Task output that will be generated in the future
     """
