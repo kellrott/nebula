@@ -16,6 +16,7 @@ import os
 import time
 import json
 
+from nebula.dag import Target
 from nebula.warpdrive import run_up, run_add, run_down
 from threading import Thread, RLock
 
@@ -43,12 +44,16 @@ class Service(Thread):
         super(Service, self).__init__()
         self.name = name
         self.queue_lock = RLock()
-        self.queue = []
+        self.queue = {}
         self.running = True
+        self.job_count = 0
 
     def submit(self, job):
         with self.queue_lock:
-            self.queue.append(job)
+            j = self.job_count
+            self.job_count += 1
+            self.queue[j] = job
+            return j
 
     def stop(self):
         self.running = False
@@ -61,6 +66,8 @@ class TaskJob:
     def __init__(self, task_data):
         self.task_data = task_data
         self.service_name = self.task_data['service']
+        self.history = None
+        self.waiting = []
 
     def set_running(self):
         pass
@@ -76,32 +83,40 @@ class TaskJob:
 
 
 class GalaxyService(Service):
-    def __init__(self, **kwds):
+    def __init__(self, objectstore, **kwds):
         super(GalaxyService, self).__init__('galaxy')
         self.config = kwds
-        self.invocation_list = []
+        self.objectstore = objectstore
+        self.waiting = {}
+        self.rg = None
 
     def run(self):
-        rg = run_up( **self.config )
-        library_id = rg.library_find("Imported")['id']
-        folder_id = rg.library_find_contents(library_id, "/")['id']
+        with self.queue_lock:
+            self.rg = run_up( **self.config )
+            library_id = self.rg.library_find("Imported")['id']
+            folder_id = self.rg.library_find_contents(library_id, "/")['id']
 
         print "Galaxy Running"
         while self.running:
             time.sleep(3)
             with self.queue_lock:
                 if len(self.queue):
-                    job = self.queue.pop()
+                    job_id, job = self.queue.popitem()
                     wids = []
                     for k, v in job.get_inputs().items():
-                        nli = rg.library_paste_file(library_id, folder_id, v['uuid'], v['path'], uuid=v['uuid'])
+                        file_path = self.objectstore.get_filename(Target(v['uuid']))
+                        print "Loading FilePath:", file_path
+                        nli = self.rg.library_paste_file(library_id, folder_id, v['uuid'], file_path, uuid=v['uuid'])
+                        if 'id' not in nli:
+                            print nli
+                            raise Exception("Failed to load data")
                         wids.append(nli['id'])
 
                     #wait for the uploading of the files to finish
                     while True:
                         done = True
                         for w in wids:
-                            d = rg.library_get_contents(library_id, w)
+                            d = self.rg.library_get_contents(library_id, w)
                             if d['state'] != 'ok':
                                 print d['state']
                                 done = False
@@ -109,21 +124,32 @@ class GalaxyService(Service):
                             break
                         time.sleep(2)
 
-                    rg.add_workflow(job.task_data['workflow'])
+                    self.rg.add_workflow(job.task_data['workflow'])
                     inputs = {}
                     for k, v in job.get_inputs().items():
                         inputs[k] = {
                             'src' : "uuid",
                             'id' : v['uuid']
                         }
-                    invc = rg.call_workflow(job.task_data['workflow']['uuid'], inputs=inputs, params={})
-                    print invc
-                    self.invocation_list.append( (invc['workflow_id'], invc['id']) )
-
-                for workflow, invc in self.invocation_list:
-                    print rg.get_workflow_invocation( workflow, invc )
-        run_down(rm=True)
-
+                    invc = self.rg.call_workflow(job.task_data['workflow']['uuid'], inputs=inputs, params={})
+                    job.history = invc['history']
+                    job.waiting = invc['outputs']
+                    self.waiting[job_id] = job
+        run_down(name=self.config['name'], rm=True)
+    
+    def status(self, job_id):
+        with self.queue_lock:
+            if self.rg is not None:
+                if job_id in self.queue:
+                    return "waiting"
+                if job_id in self.waiting:
+                    job = self.waiting[job_id]
+                    for hda in job.waiting:
+                        meta = self.rg.get_hda(job.history, hda)
+                        if meta['state'] != 'ok':
+                            return meta['state']
+                    return "ok"
+            return "waiting"
 
 class ShellService(Service):
 

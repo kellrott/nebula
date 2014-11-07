@@ -246,7 +246,7 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
             'lib_data' : list(os.path.abspath(a) for a in lib_data),
             'host' : host,
             'tool_dir' : os.path.abspath(tool_dir) if tool_dir is not None else None,
-            'tool_data' : os.path.abspath(tool_data) if tool_dir is not None else None,
+            'tool_data' : os.path.abspath(tool_data) if tool_data is not None else None,
             'metadata_suffix' : metadata_suffix,
             'tool_docker' : tool_docker,
             'key' : key,
@@ -311,6 +311,10 @@ class RemoteGalaxy(object):
 
     def library_get_contents(self, library_id, ldda_id):
         return self.get("/api/libraries/%s/contents/%s" % (library_id, ldda_id))
+    
+    def get_hda(self, history, hda):
+        return self.get("/api/histories/%s/contents/%s" % (history, hda))
+
 
     def add_workflow(self, wf):
         self.post("/api/workflows/upload", { 'workflow' : wf } )
@@ -344,10 +348,14 @@ class RemoteGalaxy(object):
 
     def library_paste_file(self, library_id, library_folder_id, name, datapath, uuid=None, metadata=None):
         datapath = os.path.abspath(datapath)
+        found = False
         for ppath, dpath in self.path_mapping.items():
             if datapath.startswith(ppath):
                 datapath = os.path.join(dpath, os.path.relpath(datapath, ppath))
+                found = True
                 break
+        if not found:
+            raise Exception("Path not in mounted lib_data directories: %s" % (datapath))
         data = {}
         data['folder_id'] = library_folder_id
         data['file_type'] = 'auto'
@@ -362,11 +370,12 @@ class RemoteGalaxy(object):
             data['extended_metadata'] = metadata
         data['filesystem_paths'] = datapath
         libset = self.post("/api/libraries/%s/contents" % library_id, data)
+        print libset
         return libset[0]
 
 
 
-def run_down(name, host=None, rm=False, work_dir="/tmp"):
+def run_down(name="galaxy", host=None, rm=False, work_dir="/tmp"):
     config_dir = os.path.join(work_dir, "warpdrive_%s" % (name))
     if not os.path.exists(config_dir):
         print "Config not found"
