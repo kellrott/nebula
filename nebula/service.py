@@ -45,6 +45,8 @@ class Service(Thread):
         self.name = name
         self.queue_lock = RLock()
         self.queue = {}
+        self.active = {}
+
         self.running = True
         self.job_count = 0
 
@@ -55,19 +57,39 @@ class Service(Thread):
             self.queue[j] = job
             return j
 
+    def get_queued(self):
+        with self.queue_lock:
+            if len(self.queue):
+                job_id, job = self.queue.popitem()
+                self.active[job_id] = job
+                return job_id, job
+        return None
+
     def stop(self):
         self.running = False
 
     def status(self, job_id):
-        raise Exception("Service not implemented")
+        with self.queue_lock:
+            if job_id in self.queue:
+                return "waiting"
+            if job_id in self.active:
+                return "active"
+            return "unknown"
 
+    def get_job(self, job_id):
+        with self.queue_lock:
+            if job_id in self.queue:
+                return self.queue[job_id]
+            if job_id in self.active:
+                return self.active[job_id]
+        return None
 
 class TaskJob:
     def __init__(self, task_data):
         self.task_data = task_data
         self.service_name = self.task_data['service']
         self.history = None
-        self.waiting = []
+        self.outputs = None
 
     def set_running(self):
         pass
@@ -81,13 +103,15 @@ class TaskJob:
     def get_inputs(self):
         return self.task_data['inputs']
 
+    def get_outputs(self):
+        return self.outputs
+
 
 class GalaxyService(Service):
     def __init__(self, objectstore, **kwds):
         super(GalaxyService, self).__init__('galaxy')
         self.config = kwds
         self.objectstore = objectstore
-        self.waiting = {}
         self.rg = None
 
     def run(self):
@@ -99,9 +123,10 @@ class GalaxyService(Service):
         print "Galaxy Running"
         while self.running:
             time.sleep(3)
-            with self.queue_lock:
-                if len(self.queue):
-                    job_id, job = self.queue.popitem()
+            req = self.get_queued()
+            if req is not None:
+                with self.queue_lock:
+                    job_id, job = req
                     wids = []
                     for k, v in job.get_inputs().items():
                         file_path = self.objectstore.get_filename(Target(v['uuid']))
@@ -133,24 +158,23 @@ class GalaxyService(Service):
                         }
                     invc = self.rg.call_workflow(job.task_data['workflow']['uuid'], inputs=inputs, params={})
                     job.history = invc['history']
-                    job.waiting = invc['outputs']
-                    self.waiting[job_id] = job
+                    job.outputs = invc['outputs']
         run_down(name=self.config['name'], rm=True)
-    
-    def status(self, job_id):
-        with self.queue_lock:
-            if self.rg is not None:
-                if job_id in self.queue:
-                    return "waiting"
-                if job_id in self.waiting:
-                    job = self.waiting[job_id]
-                    for hda in job.waiting:
-                        meta = self.rg.get_hda(job.history, hda)
-                        if meta['state'] != 'ok':
-                            return meta['state']
-                    return "ok"
-            return "waiting"
 
+    def status(self, job_id):
+        s = super(GalaxyService, self).status(job_id)
+        if s == 'active':
+            if self.rg is not None:
+                job = self.get_job(job_id)
+                for hda in job.outputs:
+                    meta = self.rg.get_hda(job.history, hda)
+                    if meta['state'] != 'ok':
+                        return meta['state']
+                return "ok"
+            return "waiting"
+        return s
+
+"""
 class ShellService(Service):
 
     def run(self, data):
@@ -190,25 +214,10 @@ class ShellService(Service):
 
     def getOutputs(self):
         return self.outputs
-
-
-class FileScanner(Service):
-
-    def run(self, data):
-        out = {}
-        logging.info("Scanning for files %s" % (self.config.storage_dir))
-        for a in glob(os.path.join(self.config.storage_dir, "*")):
-            name = os.path.basename(a)
-            if uuid4hex.match(name):
-                out[name] = {'uuid' : name, 'store_path' : os.path.abspath(a)}
-        self.outputs = out
-
-    def getOutputs(self):
-        return self.outputs
-
+"""
 
 service_map = {
-    'shell' : ShellService,
+    #'shell' : ShellService,
     'galaxy' : GalaxyService
 }
 
