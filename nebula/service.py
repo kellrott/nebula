@@ -15,10 +15,12 @@
 import os
 import time
 import json
+import logging
 
 from nebula.dag import Target
 from nebula.warpdrive import run_up, run_add, run_down
 from threading import Thread, RLock
+from nebula.exceptions import NotImplementedException
 
 def which(file):
     for path in os.environ["PATH"].split(":"):
@@ -83,6 +85,10 @@ class Service(Thread):
             if job_id in self.active:
                 return self.active[job_id]
         return None
+    
+    def store_data(self, data, object_store):
+        raise NotImplementedException()
+    
 
 class TaskJob:
     def __init__(self, task_data):
@@ -120,7 +126,7 @@ class GalaxyService(Service):
             library_id = self.rg.library_find("Imported")['id']
             folder_id = self.rg.library_find_contents(library_id, "/")['id']
 
-        print "Galaxy Running"
+        logging.info("Galaxy Running")
         while self.running:
             time.sleep(3)
             req = self.get_queued()
@@ -158,7 +164,7 @@ class GalaxyService(Service):
                         }
                     invc = self.rg.call_workflow(job.task_data['workflow']['uuid'], inputs=inputs, params={})
                     job.history = invc['history']
-                    job.outputs = invc['outputs']
+                    job.outputs = list( {"id" : i, "history" : invc['history'], "src" : "hda"} for i in invc['outputs'] )
         run_down(name=self.config['name'], rm=True)
 
     def status(self, job_id):
@@ -166,13 +172,18 @@ class GalaxyService(Service):
         if s == 'active':
             if self.rg is not None:
                 job = self.get_job(job_id)
-                for hda in job.outputs:
-                    meta = self.rg.get_hda(job.history, hda)
+                for data in job.outputs:
+                    meta = self.rg.get_hda(job.history, data['id'])
                     if meta['state'] != 'ok':
                         return meta['state']
                 return "ok"
             return "waiting"
         return s
+    
+    def store_data(self, data, object_store):
+        print "STORE:", self.rg.get_hda(data['history'], data['id'])
+
+
 
 """
 class ShellService(Service):

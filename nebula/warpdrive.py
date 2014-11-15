@@ -140,8 +140,11 @@ def call_docker_ps(
 
 def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=None,
     lib_data=[], auto_add=False, tool_data=None, metadata_suffix=None, tool_dir=None,
-    work_dir="/tmp", tool_docker=False,
+    work_dir="/tmp", tool_docker=False, force=False,
     key="HSNiugRFvgT574F43jZ7N9F3"):
+
+    if force and run_status(name=name,host=host):
+        run_down(name=name, host=host, rm=True, work_dir=work_dir)
 
     env = {
         "GALAXY_CONFIG_CHECK_MIGRATE_TOOLS" : "False",
@@ -315,7 +318,6 @@ class RemoteGalaxy(object):
     def get_hda(self, history, hda):
         return self.get("/api/histories/%s/contents/%s" % (history, hda))
 
-
     def add_workflow(self, wf):
         self.post("/api/workflows/upload", { 'workflow' : wf } )
 
@@ -421,6 +423,7 @@ def run_status(name="galaxy", host=None):
                 found = True
     if not found:
         print "NotFound"
+    return found
 
 
 def run_add(name="galaxy", work_dir="/tmp", files=[]):
@@ -480,8 +483,8 @@ JOB_CHILD_CONF = """<?xml version="1.0"?>
         <handler id="handler0" tags="handlers"/>
         <handler id="handler1" tags="handlers"/>
     </handlers>
-    <destinations default="cluster">
-        <destination id="cluster" runner="slurm">
+    <destinations default="cluster_docker">
+        <destination id="cluster_docker" runner="slurm">
             <param id="docker_enabled">true</param>
             <param id="docker_sudo">false</param>
             <param id="docker_net">bridge</param>
@@ -489,7 +492,12 @@ JOB_CHILD_CONF = """<?xml version="1.0"?>
             <param id="docker_volumes"></param>
             <param id="docker_volumes_from">${NAME}</param>
         </destination>
+        <destination id="cluster" runner="slurm">
+        </destination>
     </destinations>
+    <tools>
+        <tool id="upload1" handler="handlers" destination="cluster"></tool>
+    </tools>
 </job_conf>
 """
 
@@ -506,6 +514,7 @@ if __name__ == "__main__":
     parser_up = subparsers.add_parser('up')
     parser_up.add_argument("-t", "--tag", dest="docker_tag", default="bgruening/galaxy-stable")
     parser_up.add_argument("-x", "--tool-dir", default=None)
+    parser_up.add_argument("-f", "--force", action="store_true", default=False)
     parser_up.add_argument("-d", "--tool-data", default=None)
     parser_up.add_argument("-w", "--work-dir", default="/tmp")
     parser_up.add_argument("-p", "--port", default="8080")

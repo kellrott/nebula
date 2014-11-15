@@ -1,5 +1,16 @@
 #!/usr/bin/env python
 
+"""
+
+To test:
+./scripts/run_galaxy_workflow.py -d examples/simple_galaxy \
+-t examples/simple_galaxy \
+-w examples/simple_galaxy/SimpleWorkflow.ga \
+-l examples/simple_galaxy/ examples/simple_galaxy/input.json 
+
+"""
+
+
 import os
 import re
 import json
@@ -62,7 +73,7 @@ def run_workflow(args):
         tasks.append(task_data)
 
     #this side happens on the worker node
-    service = ServiceFactory('galaxy', objectstore=obj, lib_data=[args.object_store], tool_dir=args.tools, docker_tag=args.galaxy, work_dir=args.warpdrive_dir)
+    service = ServiceFactory('galaxy', objectstore=obj, lib_data=[args.object_store], tool_dir=args.tools, docker_tag=args.galaxy, work_dir=args.warpdrive_dir, tool_docker=True)
     service.start()
     job_ids = []
     for task_data in tasks:
@@ -84,6 +95,8 @@ def run_workflow(args):
     #move the output data into the datastore
     for i in job_ids:
         job = service.get_job(i)
+        for a in job.get_outputs():
+            service.store_data(a, obj)
 
     print "Done"
     service.stop()
