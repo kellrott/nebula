@@ -34,7 +34,7 @@ def get_docker_path():
 
 def call_docker_run(
     docker_tag, ports={},
-    args=[], host=None,
+    args=[], host=None, sudo=False,
     env={},
     set_user=False,
     mounts={},
@@ -67,7 +67,8 @@ def call_docker_run(
     sys_env = dict(os.environ)
     if host is not None:
         sys_env['DOCKER_HOST'] = host
-
+    if sudo:
+        cmd = ['sudo'] + cmd
     logging.info("executing: " + " ".join(cmd))
     proc = subprocess.Popen(cmd, close_fds=True, env=sys_env, stdout=subprocess.PIPE)
     stdout, stderr = proc.communicate()
@@ -77,7 +78,7 @@ def call_docker_run(
 
 def call_docker_kill(
     name,
-    host=None,
+    host=None, sudo=False
     ):
 
     docker_path = get_docker_path()
@@ -85,17 +86,17 @@ def call_docker_kill(
     cmd = [
         docker_path, "kill", name
     ]
-
     sys_env = dict(os.environ)
     if host is not None:
         sys_env['DOCKER_HOST'] = host
-
+    if sudo:
+        cmd = ['sudo'] + cmd
     logging.info("executing: " + " ".join(cmd))
     subprocess.check_call(cmd, close_fds=True, env=sys_env, stdout=subprocess.PIPE)
 
 def call_docker_rm(
     name=None,
-    host=None
+    host=None, sudo=False
     ):
 
     docker_path = get_docker_path()
@@ -107,7 +108,8 @@ def call_docker_rm(
     sys_env = dict(os.environ)
     if host is not None:
         sys_env['DOCKER_HOST'] = host
-
+    if sudo:
+        cmd = ['sudo'] + cmd
     logging.info("executing: " + " ".join(cmd))
     proc = subprocess.Popen(cmd, close_fds=True, env=sys_env, stdout=subprocess.PIPE)
     stdout, stderr = proc.communicate()
@@ -117,7 +119,7 @@ def call_docker_rm(
 
 
 def call_docker_ps(
-    host=None
+    host=None, sudo=False
     ):
 
     docker_path = get_docker_path()
@@ -129,7 +131,8 @@ def call_docker_ps(
     sys_env = dict(os.environ)
     if host is not None:
         sys_env['DOCKER_HOST'] = host
-
+    if sudo:
+        cmd = ['sudo'] + cmd
     logging.info("executing: " + " ".join(cmd))
     proc = subprocess.Popen(cmd, close_fds=True, env=sys_env, stdout=subprocess.PIPE)
     stdout, stderr = proc.communicate()
@@ -139,8 +142,8 @@ def call_docker_ps(
 
 
 def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=None,
-    lib_data=[], auto_add=False, tool_data=None, metadata_suffix=None, tool_dir=None,
-    work_dir="/tmp", tool_docker=False, force=False,
+    sudo=False, lib_data=[], auto_add=False, tool_data=None, file_store=None, metadata_suffix=None,
+    tool_dir=None, work_dir="/tmp", tool_docker=False, force=False,
     key="HSNiugRFvgT574F43jZ7N9F3"):
 
     if force and run_status(name=name,host=host):
@@ -175,7 +178,7 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
     for i, ld in enumerate(lib_data):
         env['GALAXY_CONFIG_ALLOW_LIBRARY_PATH_PASTE'] = "True"
         lpath = os.path.abspath(ld)
-        dpath = "/export/lib_data_%s" % (i)
+        dpath = "/parent/lib_data_%s" % (i)
         mounts[lpath] = dpath
         lib_mapping[lpath] = dpath
         if auto_add:
@@ -194,11 +197,22 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
                                 logging.debug("Found metadata for %s " % (file))
                         except:
                             pass
+    if file_store:
+        file_store = os.path.abspath(file_store)
+        dpath = "/parent/files"
+        env['GALAXY_CONFIG_FILE_PATH'] = dpath
+        lib_mapping[file_store] = dpath
+        mounts[file_store] = dpath
 
     if tool_docker:
         mounts[config_dir] = "/config"
         with open( os.path.join(config_dir, "job_conf.xml"), "w" ) as handle:
-            handle.write(string.Template(JOB_CHILD_CONF).substitute(TAG=docker_tag, NAME=name))
+            common_volumes = ",".join( "%s:%s:ro" % (k,v) for k,v in lib_mapping.items() )
+            handle.write(string.Template(JOB_CHILD_CONF).substitute(
+                TAG=docker_tag,
+                NAME=name,
+                COMMON_VOLUMES=common_volumes
+            ))
         env["GALAXY_CONFIG_JOB_CONFIG_FILE"] = "/config/job_conf.xml"
         env['GALAXY_CONFIG_OUTPUTS_TO_WORKING_DIRECTORY'] = "True"
         privledged=True
@@ -207,6 +221,7 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
         docker_tag,
         ports={str(port) : "80"},
         host=host,
+        sudo=sudo,
         name=name,
         mounts=mounts,
         privledged=privledged,
@@ -249,6 +264,7 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
             'lib_data' : list(os.path.abspath(a) for a in lib_data),
             'host' : host,
             'tool_dir' : os.path.abspath(tool_dir) if tool_dir is not None else None,
+            'file_store' : os.path.abspath(file_store) if file_store is not None else None,
             'tool_data' : os.path.abspath(tool_data) if tool_data is not None else None,
             'metadata_suffix' : metadata_suffix,
             'tool_docker' : tool_docker,
@@ -314,7 +330,7 @@ class RemoteGalaxy(object):
 
     def library_get_contents(self, library_id, ldda_id):
         return self.get("/api/libraries/%s/contents/%s" % (library_id, ldda_id))
-    
+
     def get_hda(self, history, hda):
         return self.get("/api/histories/%s/contents/%s" % (history, hda))
 
@@ -377,27 +393,27 @@ class RemoteGalaxy(object):
 
 
 
-def run_down(name="galaxy", host=None, rm=False, work_dir="/tmp"):
+def run_down(name="galaxy", host=None, rm=False, work_dir="/tmp", sudo=False):
     config_dir = os.path.join(work_dir, "warpdrive_%s" % (name))
     if not os.path.exists(config_dir):
         print "Config not found"
         return
     try:
         call_docker_kill(
-            name, host=host
-            )
+            name, host=host, sudo=sudo
+        )
     except subprocess.CalledProcessError:
         return
     if rm:
         call_docker_rm(
-            name, host=host
+            name, host=host, sudo=sudo
         )
         shutil.rmtree(config_dir)
 
 
-def run_status(name="galaxy", host=None):
+def run_status(name="galaxy", host=None, sudo=False):
     txt = call_docker_ps(
-        host=host
+        host=host, sudo=sudo
     )
 
     lines = txt.split("\n")
@@ -489,7 +505,7 @@ JOB_CHILD_CONF = """<?xml version="1.0"?>
             <param id="docker_sudo">false</param>
             <param id="docker_net">bridge</param>
             <param id="docker_default_container_id">${TAG}</param>
-            <param id="docker_volumes"></param>
+            <param id="docker_volumes">${COMMON_VOLUMES}</param>
             <param id="docker_volumes_from">${NAME}</param>
         </destination>
         <destination id="cluster" runner="slurm">
@@ -516,6 +532,7 @@ if __name__ == "__main__":
     parser_up.add_argument("-x", "--tool-dir", default=None)
     parser_up.add_argument("-f", "--force", action="store_true", default=False)
     parser_up.add_argument("-d", "--tool-data", default=None)
+    parser_up.add_argument("-s", "--file-store", default=None)
     parser_up.add_argument("-w", "--work-dir", default="/tmp")
     parser_up.add_argument("-p", "--port", default="8080")
     parser_up.add_argument("-m", "--metadata", dest="metadata_suffix", default=None)
@@ -525,6 +542,7 @@ if __name__ == "__main__":
     parser_up.add_argument("-c", "--child", dest="tool_docker", action="store_true", help="Launch jobs in child containers", default=False)
     parser_up.add_argument("--key", default="HSNiugRFvgT574F43jZ7N9F3")
     parser_up.add_argument("--host", default=None)
+    parser_up.add_argument("--sudo", action="store_true", default=False)
     parser_up.set_defaults(func=run_up)
 
     parser_down = subparsers.add_parser('down')
@@ -532,11 +550,13 @@ if __name__ == "__main__":
     parser_down.add_argument("--rm", action="store_true", default=False)
     parser_down.add_argument("--host", default=None)
     parser_down.add_argument("-w", "--work-dir", default="/tmp")
+    parser_down.add_argument("--sudo", action="store_true", default=False)
     parser_down.set_defaults(func=run_down)
 
     parser_status = subparsers.add_parser('status')
     parser_status.add_argument("-n", "--name", default="galaxy")
     parser_status.add_argument("--host", default=None)
+    parser_status.add_argument("--sudo", action="store_true", default=False)
     parser_status.set_defaults(func=run_status)
 
     parser_add = subparsers.add_parser('add')

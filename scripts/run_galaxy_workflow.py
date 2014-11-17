@@ -6,7 +6,7 @@ To test:
 ./scripts/run_galaxy_workflow.py -d examples/simple_galaxy \
 -t examples/simple_galaxy \
 -w examples/simple_galaxy/SimpleWorkflow.ga \
--l examples/simple_galaxy/ examples/simple_galaxy/input.json 
+-l examples/simple_galaxy/ examples/simple_galaxy/input.json
 
 """
 
@@ -73,7 +73,10 @@ def run_workflow(args):
         tasks.append(task_data)
 
     #this side happens on the worker node
-    service = ServiceFactory('galaxy', objectstore=obj, lib_data=[args.object_store], tool_dir=args.tools, docker_tag=args.galaxy, work_dir=args.warpdrive_dir, tool_docker=True)
+    service = ServiceFactory('galaxy', objectstore=obj,
+        lib_data=[args.object_store], tool_dir=args.tools, file_store=args.local_store,
+        docker_tag=args.galaxy, work_dir=args.warpdrive_dir, sudo=args.sudo,
+        tool_docker=True)
     service.start()
     job_ids = []
     for task_data in tasks:
@@ -112,6 +115,8 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--object-store", default="./nebula_data")
     parser.add_argument("-b", "--doc-store", default="./nebula_docs")
     parser.add_argument("-l", "--local-store", default="./nebula_work")
+    parser.add_argument("--sudo", action="store_true", default=False)
+
 
     parser.add_argument("inputs", nargs="+", default=[])
 
