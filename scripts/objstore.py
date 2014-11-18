@@ -5,6 +5,7 @@ import sys
 from argparse import ArgumentParser
 from nebula.dag import Target
 from nebula.objectstore.gnos import GNOSStore
+from nebula.docstore import FileDocStore
 
 def run_size(args):    
     store = GNOSStore(None, file_path=args.cache)    
@@ -15,6 +16,10 @@ def run_cache(args):
     store = GNOSStore(None, file_path=args.cache, docker_config={'image' : 'gtdownload'})
     print store.get_filename(Target(args.obj))
     
+def run_ls(args):
+    doc = FileDocStore(file_path=args.doc)
+    for a in doc.filter():
+        print "%s\t%s" % (a['model_class'], a['uuid'])
 
 if __name__ == "__main__":
     parser = ArgumentParser()    
@@ -29,7 +34,10 @@ if __name__ == "__main__":
     parser_cache.add_argument("obj")    
     parser_cache.add_argument("--cache", default="/tmp/gnos-cache")
     parser_cache.set_defaults(func=run_cache)
-
+    
+    parser_ls = subparsers.add_parser('ls')
+    parser_ls.add_argument("--doc", default="./nebula_docs")
+    parser_ls.set_defaults(func=run_ls)
 
     args = parser.parse_args()
     sys.exit(args.func(args))

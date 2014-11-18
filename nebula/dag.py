@@ -151,6 +151,13 @@ class TaskDag(object):
 class Target(object):
     def __init__(self, uuid):
         self.uuid = uuid
+    
+    def to_dict(self):
+        return {
+            "model_class" : "Target",
+            'uuid' : self.uuid
+        }
+    
 
 class TargetFile(Target):
     def __init__(self, path):

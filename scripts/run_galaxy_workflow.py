@@ -66,7 +66,7 @@ def run_workflow(args):
                     if t.uuid not in data_map:
                         raise Exception("Can't find input data: %s" % (t.uuid))
                     obj.update_from_file(t, data_map[t.uuid], create=True)
-                    doc.put(t.uuid, v)
+                    doc.put(t.uuid, t.to_dict())
                 inputs[k] = t
         task = GalaxyWorkflow('task_%s' % (i), args.workflow, inputs=inputs, docker=args.galaxy, tool_dir=args.tools)
         task_data = task.get_task_data()
@@ -74,7 +74,7 @@ def run_workflow(args):
 
     #this side happens on the worker node
     service = ServiceFactory('galaxy', objectstore=obj,
-        lib_data=[args.object_store], tool_dir=args.tools, file_store=args.local_store,
+        lib_data=[args.object_store], tool_dir=args.tools,
         docker_tag=args.galaxy, work_dir=args.warpdrive_dir, sudo=args.sudo,
         tool_docker=True)
     service.start()
@@ -100,6 +100,7 @@ def run_workflow(args):
         job = service.get_job(i)
         for a in job.get_outputs():
             service.store_data(a, obj)
+            service.store_meta(a, doc)
 
     print "Done"
     service.stop()

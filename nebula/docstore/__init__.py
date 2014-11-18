@@ -2,6 +2,7 @@
 import os
 import uuid
 import json
+from glob import glob
 
 class DocStore(object):
     """
@@ -28,6 +29,10 @@ class DocStore(object):
 
     def cleanid(self, id):
         return str(uuid.UUID(id))
+    
+    def filter(self, *kwds):
+        raise NotImplementedError()
+
 
 
 class FileDocStore(DocStore):
@@ -58,3 +63,17 @@ class FileDocStore(DocStore):
         path = os.path.join(self.file_path, id[:2], id + ".json")
         with open(path, "w") as handle:
             handle.write(self.dumpdoc(doc))
+        
+    def _doclist(self):
+        return glob(os.path.join(self.file_path, "*", "*.json"))
+        
+    def filter(self, **kwds):
+        for a in self._doclist():
+            with open(a) as handle:
+                meta = json.loads(handle.read())
+                match = True
+                for k,v in kwds.items():
+                    if meta[k] != v:
+                        match = False
+                if match:
+                    yield meta

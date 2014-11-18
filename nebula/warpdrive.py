@@ -75,6 +75,25 @@ def call_docker_run(
     if proc.returncode != 0:
         raise Exception("Call Failed: %s" % (cmd))
 
+def call_docker_copy(
+    src,
+    dst,
+    host = None,
+    sudo = False):
+    
+    docker_path = get_docker_path()
+
+    cmd = [
+        docker_path, "cp", src, dst
+    ]
+    sys_env = dict(os.environ)
+    if host is not None:
+        sys_env['DOCKER_HOST'] = host
+    if sudo:
+        cmd = ['sudo'] + cmd
+    logging.info("executing: " + " ".join(cmd))
+    subprocess.check_call(cmd, close_fds=True, env=sys_env, stdout=subprocess.PIPE)
+
 
 def call_docker_kill(
     name,
@@ -241,6 +260,8 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
             res = requests.get(url, timeout=3)
             if res.status_code / 100 == 5:
                 continue
+            if res.status_code == 404:
+                continue
             break
         except requests.exceptions.ConnectionError:
             pass
@@ -293,6 +314,7 @@ class RemoteGalaxy(object):
         params['key'] = self.api_key
         logging.debug("POSTING: %s %s" % (c_url, json.dumps(payload)))
         req = requests.post(c_url, data=json.dumps(payload), params=params, headers = {'Content-Type': 'application/json'} )
+        print req.text
         return req.json()
 
     def post_text(self, path, payload, params=None):
@@ -478,6 +500,18 @@ def run_add(name="galaxy", work_dir="/tmp", files=[]):
         logging.info("Adding %s" % (d))
         rg.library_paste_file(library_id, folder_id, os.path.basename(name), d, uuid=md.get('uuid', None))
 
+
+
+
+def run_copy(name="galaxy", src=None, dst=None, host=None, sudo=False):
+    if src is None or dst is None:
+        return
+    call_docker_copy(
+        host = host,
+        sudo = sudo,
+        src= "%s:%s" % (name, src),
+        dst=dst
+    )
 
 
 TOOL_IMPORT_CONF = """<?xml version='1.0' encoding='utf-8'?>
