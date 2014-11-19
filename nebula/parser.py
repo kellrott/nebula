@@ -120,4 +120,5 @@ class NebulaCompile:
     def build_images(self, config):
         config.get_workinfo_manager().build_worker_egg()
         for v in self.target_map.values():
+            config.get_workinfo_manager.build_dockerimage()
             v.build_image(config)

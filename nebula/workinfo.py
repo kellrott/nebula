@@ -37,9 +37,21 @@ class WorkInfoManager:
         if len(records) == 1:
             return records[0]['repositories']
         raise Exception("Multiple Matching Records")
+    
+    def get_worker_egg_id(self):
+        records = list(self.object_store(model_class='WorkerEgg', nebula_id=nebula_id, task_id=task_id))
+        if len(records) == 0:
+            return None
+
         
     def build_worker_egg(self):
         
+        hda = Target(meta)
+        object_store.create(hda)
+        path = object_store.get_filename(hda)
+        self.rg.download(meta['download_url'], path)
+        object_store.update_from_file(hda)
+
         egg_path = os.path.join(self.get_image_dir(), WORKER_EGG)
         write_worker_egg(egg_path)
 
