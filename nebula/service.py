@@ -18,7 +18,7 @@ import json
 import logging
 
 from nebula.dag import Target
-from nebula.warpdrive import run_up, run_add, run_down, run_copy
+from nebula.warpdrive import run_up, run_add, run_down
 from threading import Thread, RLock
 from nebula.exceptions import NotImplementedException
 
@@ -115,6 +115,7 @@ class TaskJob:
 class HDATarget(Target):
     def __init__(self, meta):
         self.meta = meta
+        self.uuid = meta['uuid']
 
 class GalaxyService(Service):
     def __init__(self, objectstore, **kwds):
@@ -188,8 +189,8 @@ class GalaxyService(Service):
         hda = HDATarget(meta)
         object_store.create(hda)
         path = object_store.get_filename(hda)
-        run_copy(name=self.config['name'], src=meta['file_path'], dst=path)
-        object_store.update_from_file(obj)
+        self.rg.download(meta['download_url'], path)
+        object_store.update_from_file(hda)
     
     def store_meta(self, data, doc_store):
         meta = self.rg.get_hda(data['history'], data['id'])

@@ -325,6 +325,17 @@ class RemoteGalaxy(object):
         logging.debug("POSTING: %s %s" % (c_url, json.dumps(payload)))
         req = requests.post(c_url, data=json.dumps(payload), params=params, headers = {'Content-Type': 'application/json'} )
         return req.text
+    
+    def download(self, path, dst):
+        url = self.url + path
+        logging.info("Downloading: %s" % (url))
+        r = requests.get(url, stream=True)
+        with open(dst, "wb") as handle:
+            for chunk in r.iter_content(chunk_size=1024):
+                if chunk:
+                    handle.write(chunk)
+                    handle.flush()
+                    
 
     def create_library(self, name):
         lib_create_data = {'name' : name}
