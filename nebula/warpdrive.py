@@ -329,7 +329,9 @@ class RemoteGalaxy(object):
     def download(self, path, dst):
         url = self.url + path
         logging.info("Downloading: %s" % (url))
-        r = requests.get(url, stream=True)
+        params = {}
+        params['key'] = self.api_key
+        r = requests.get(url, params=params, stream=True)
         with open(dst, "wb") as handle:
             for chunk in r.iter_content(chunk_size=1024):
                 if chunk:

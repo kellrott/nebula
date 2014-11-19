@@ -118,6 +118,6 @@ class NebulaCompile:
         return out
 
     def build_images(self, config):
-        config.get_workrepo().build_worker_egg()
+        config.get_workinfo_manager().build_worker_egg()
         for v in self.target_map.values():
             v.build_image(config)

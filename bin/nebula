@@ -21,17 +21,34 @@ import socket
 
 
 from nebula import NebulaCompile, Scheduler, Config, WebSite, WorkRepo, DagSet
+from nebula.objectstore import init_objectstore_url
+from nebula.docstore import init_docstore_url
 
-def main(args):
+def run_main(args):
+    
+    if args.builddir is None:
+        bfile = os.path.abspath("Nebulafile")
+        if not os.path.exists(file):
+            bfile = os.path.abspath("NebulaFile")
+        args.buildfile = bfile
+    else:
+        bfile = os.path.join(os.path.abspath(args.builddir), "Nebulafile")
+        if not os.path.exists(bfile):
+            bfile = os.path.join(os.path.abspath(args.builddir), "NebulaFile")
+        args.buildfile = bfile
+    args.workdir = os.path.abspath(args.workdir)
+
+    if args.server is None:
+        args.server = socket.gethostname()
+
     config = Config(mesos=args.mesos,
         port=args.port,
         host=args.server,
         workdir=args.workdir,
         docker=args.docker,
         docker_clean = args.docker_clean,
-        dist_storage_dir = os.path.abspath(args.dist_storage),
-        basedir=os.path.dirname(args.buildfile),
-        shared_dirs=list(os.path.abspath(a) for a in args.shared),
+        object_store = init_objectstore_url(args.object_store),
+        doc_store = init_docstore_url(args.doc_store),
         max_servers=args.max_servers
     )
     build = NebulaCompile()
@@ -57,7 +74,7 @@ def main(args):
         web.stop()
         drms.stop()
 
-def describe(args):
+def run_tree(args):
     config = Config(
         mesos=args.mesos,
         port=args.port,
@@ -81,36 +98,30 @@ def describe(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mesos", default="127.0.0.1:5050")
-    parser.add_argument("--port", type=int, default=9999)
-    parser.add_argument("-v", action="store_true", default=False)
-    parser.add_argument("-t", "--tree", action="store_true", default=False)
-    parser.add_argument("-r", "--resume", action="store_true", default=False)
-    parser.add_argument("--docker-clean", action="store_true", default=False)
-    parser.add_argument("--dist-storage", default="/tmp/nebula-storage")
-    parser.add_argument("-s", "--server", default=None)
-    parser.add_argument("--sf", "--shared", dest="shared", action="append", default=[])
-    parser.add_argument("-m", "--max-servers", type=int, default=0)
-    parser.add_argument("-w", "--workdir", default="/tmp")
-    parser.add_argument("--docker", default=None)
+    subparsers = parser.add_subparsers(title="subcommand")
+    
+    parser_tree = subparsers.add_parser('tree')
+    parser_tree.set_defaults(func=run_tree)
+    
+    parser_run = subparsers.add_parser('run')
+    parser_run.set_defaults(func=run_main)
+    parser_run.add_argument("--mesos", default="127.0.0.1:5050")
+    parser_run.add_argument("--port", type=int, default=9999)
+    parser_run.add_argument("-v", action="store_true", default=False)
+    #parser_run.add_argument("-r", "--resume", action="store_true", default=False)
+    parser_run.add_argument("--docker-clean", action="store_true", default=False)
+    
+    parser_run.add_argument("--object-store", default="/tmp/nebula-storage")
+    parser_run.add_argument("--doc-store", default="/tmp/nebula-docs")
+    parser_run.add_argument("-s", "--server", default=None)
+    #parser_run.add_argument("--sf", "--shared", dest="shared", action="append", default=[])
+    parser_run.add_argument("-m", "--max-servers", type=int, default=0)
+    parser_run.add_argument("-w", "--workdir", default="/tmp")
+    parser_run.add_argument("--docker", default=None)
 
-    parser.add_argument("builddir", nargs="?", default=None)
+    parser_run.add_argument("builddir", nargs="?", default=None)
     args = parser.parse_args()
 
-    if args.builddir is None:
-        bfile = os.path.abspath("Nebulafile")
-        if not os.path.exists(file):
-            bfile = os.path.abspath("NebulaFile")
-        args.buildfile = bfile
-    else:
-        bfile = os.path.join(os.path.abspath(args.builddir), "Nebulafile")
-        if not os.path.exists(bfile):
-            bfile = os.path.join(os.path.abspath(args.builddir), "NebulaFile")
-        args.buildfile = bfile
-    args.workdir = os.path.abspath(args.workdir)
-
-    if args.server is None:
-        args.server = socket.gethostname()
 
     if args.v:
         logging.basicConfig(level=logging.DEBUG)
@@ -118,7 +129,12 @@ if __name__ == "__main__":
     else:
         logging.basicConfig(level=logging.INFO)
 
-    if args.tree:
-        describe(args)
-    else:
-        main(args)
+    func = args.func
+
+    #try:
+    func(args)
+    sys.exit(0)
+    #except Exception, e:
+    #    sys.stderr.write("%s\n" % (e.message))
+    #    sys.exit(1)
+

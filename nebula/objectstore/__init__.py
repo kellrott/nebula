@@ -2,7 +2,14 @@
 import os
 import stat
 import shutil
+from urlparse import urlparse
 
+def init_objectstore_url(url):
+    p = urlparse(url)
+    if p.scheme == '':
+        return DiskObjectStore(DiskObjectStoreConfig(), file_path=url)
+    
+    raise Exception("Unknown ObjectStore %s" % (url))
 
 class ObjectStore(object):
     """
@@ -229,7 +236,7 @@ def umask_fix_perms( path, umask, unmasked_perms, gid=None ):
 
 
 class DiskObjectStoreConfig:
-    def __init__(self, job_work, new_file_path):
+    def __init__(self, job_work=None, new_file_path=None):
         self.object_store_check_old_style = False
         self.job_working_directory = job_work
         self.new_file_path = new_file_path

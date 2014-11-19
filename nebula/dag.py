@@ -279,37 +279,6 @@ class TaskNode(object):
     def is_complete(self):
         return self.state == DONE
 
-    def build_image(self, config):
-        #setup the host value for docker calls
-        env = dict(os.environ)
-        if config.docker is not None:
-            env['DOCKER_HOST'] = config.docker
-
-        workrepo = config.get_workrepo()
-        sha1 = workrepo.get_dockerimage_sha1(self.docker.name)
-        if sha1 is None:
-            logging.info("Missing Docker Image: " + self.docker.name)
-            if self.docker.path is not None and os.path.exists(self.docker.path):
-                logging.info("Running Docker Build")
-                if config.docker_clean:
-                    cache = "--no-cache"
-                else:
-                    cache = ""
-                cmd = "docker build %s -t %s %s" % (cache, self.docker.name, self.docker.path)
-                subprocess.check_call(cmd, shell=True, env=env)
-                logging.info("Saving Docker Image: " + self.docker.name)
-                cmd = "docker save %s > %s" % (self.docker.name, workrepo.get_dockerimage_path(self.docker.name))
-                subprocess.check_call(cmd, shell=True, env=env)
-            else:
-                logging.info("Pulling Docker Image")
-                cmd = "docker pull %s" % (self.docker.name)
-                logging.info(cmd)
-                subprocess.check_call(cmd, shell=True, env=env)
-                logging.info("Saving Docker Image: " + self.docker.name)
-                cmd = "docker save %s > %s" % (self.docker.name, workrepo.get_dockerimage_path(self.docker.name))
-                logging.info(cmd)
-                subprocess.check_call(cmd, shell=True, env=env)
-
 
 class TaskFuture(object):
     """
