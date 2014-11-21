@@ -14,6 +14,7 @@ import string
 import json
 import shutil
 
+from xml.dom.minidom import parse as parseXML
 from glob import glob
 
 class RequestException(Exception):
@@ -80,7 +81,7 @@ def call_docker_copy(
     dst,
     host = None,
     sudo = False):
-    
+
     docker_path = get_docker_path()
 
     cmd = [
@@ -158,6 +159,37 @@ def call_docker_ps(
     if proc.returncode != 0:
         raise Exception("Call Failed: %s" % (cmd))
     return stdout
+
+
+def call_docker_build(
+    dir,
+    host = None,
+    sudo = False,
+    no_cache=False,
+    tag=None
+    ):
+
+    docker_path = get_docker_path()
+
+    cmd = [
+        docker_path, "build"
+    ]
+    if no_cache:
+        cmd.append("--no-cache")
+    if tag is not None:
+        cmd.extend( ['-t', tag] )
+    cmd.append(dir)
+
+    sys_env = dict(os.environ)
+    if host is not None:
+        sys_env['DOCKER_HOST'] = host
+    if sudo:
+        cmd = ['sudo'] + cmd
+    logging.info("executing: " + " ".join(cmd))
+    proc = subprocess.Popen(cmd, close_fds=True, env=sys_env)
+    stdout, stderr = proc.communicate()
+    if proc.returncode != 0:
+        raise Exception("Call Failed: %s" % (cmd))
 
 
 def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=None,
@@ -325,7 +357,7 @@ class RemoteGalaxy(object):
         logging.debug("POSTING: %s %s" % (c_url, json.dumps(payload)))
         req = requests.post(c_url, data=json.dumps(payload), params=params, headers = {'Content-Type': 'application/json'} )
         return req.text
-    
+
     def download(self, path, dst):
         url = self.url + path
         logging.info("Downloading: %s" % (url))
@@ -337,7 +369,7 @@ class RemoteGalaxy(object):
                 if chunk:
                     handle.write(chunk)
                     handle.flush()
-                    
+
 
     def create_library(self, name):
         lib_create_data = {'name' : name}
@@ -514,8 +546,6 @@ def run_add(name="galaxy", work_dir="/tmp", files=[]):
         rg.library_paste_file(library_id, folder_id, os.path.basename(name), d, uuid=md.get('uuid', None))
 
 
-
-
 def run_copy(name="galaxy", src=None, dst=None, host=None, sudo=False):
     if src is None or dst is None:
         return
@@ -525,6 +555,61 @@ def run_copy(name="galaxy", src=None, dst=None, host=None, sudo=False):
         src= "%s:%s" % (name, src),
         dst=dst
     )
+
+
+"""
+Code for dealing with XML
+"""
+
+def getText(nodelist):
+    rc = []
+    for node in nodelist:
+        if node.nodeType == node.TEXT_NODE:
+            rc.append(node.data)
+    return ''.join(rc)
+
+
+def dom_scan(node, query):
+    stack = query.split("/")
+    if node.localName == stack[0]:
+        return dom_scan_iter(node, stack[1:], [stack[0]])
+
+def dom_scan_iter(node, stack, prefix):
+    if len(stack):
+        for child in node.childNodes:
+            if child.nodeType == child.ELEMENT_NODE:
+                if child.localName == stack[0]:
+                    for out in dom_scan_iter(child, stack[1:], prefix + [stack[0]]):
+                        yield out
+                elif '*' == stack[0]:
+                    for out in dom_scan_iter(child, stack[1:], prefix + [child.localName]):
+                        yield out
+    else:
+        if node.nodeType == node.ELEMENT_NODE:
+            yield node, prefix, dict(node.attributes.items()), getText( node.childNodes )
+        elif node.nodeType == node.TEXT_NODE:
+            yield node, prefix, None, getText( node.childNodes )
+
+
+def run_build(tool_dir, host=None, sudo=False, tool=None, no_cache=False):
+    for tool_conf in glob(os.path.join(tool_dir, "*", "*.xml")):
+        dom = parseXML(tool_conf)
+        s = dom_scan(dom.childNodes[0], "tool")
+        if s is not None:
+            if tool is None or list(s)[0][2]['id'] in tool:
+                scan = dom_scan(dom.childNodes[0], "tool/requirements/container")
+                if scan is not None:
+                    for node, prefix, attrs, text in scan:
+                        if 'type' in attrs and attrs['type'] == 'docker':
+                            tag = text
+                            call_docker_build(
+                                host = host,
+                                sudo = sudo,
+                                no_cache=no_cache,
+                                tag=tag,
+                                dir=os.path.dirname(tool_conf)
+                            )
+
 
 
 TOOL_IMPORT_CONF = """<?xml version='1.0' encoding='utf-8'?>
@@ -563,7 +648,6 @@ JOB_CHILD_CONF = """<?xml version="1.0"?>
     </tools>
 </job_conf>
 """
-
 
 
 if __name__ == "__main__":
@@ -611,6 +695,15 @@ if __name__ == "__main__":
     parser_add.add_argument("-w", "--work-dir", default="/tmp")
     parser_add.add_argument("files", nargs="+")
     parser_add.set_defaults(func=run_add)
+
+    parser_build = subparsers.add_parser('build')
+    parser_build.add_argument("--host", default=None)
+    parser_build.add_argument("--sudo", action="store_true", default=False)
+    parser_build.add_argument("--no-cache", action="store_true", default=False)
+    parser_build.add_argument("-t", "--tool", action="append", default=None)
+
+    parser_build.add_argument("tool_dir")
+    parser_build.set_defaults(func=run_build)
 
     args = parser.parse_args()
 
