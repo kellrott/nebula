@@ -14,6 +14,6 @@
 from parser import NebulaCompile
 from scheduler import Scheduler
 from website import WebSite
-from workrepo import WorkRepo
+from workinfo import WorkInfoManager
 from config import Config
 from dag import DagSet
