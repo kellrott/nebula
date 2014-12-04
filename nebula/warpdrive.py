@@ -60,7 +60,6 @@ def call_docker_run(
         cmd.extend( ["-v", "%s:%s" % (k, v)])
     if privledged:
         cmd.append("--privileged")
-        cmd.extend( ['-v', '/var/run/docker.sock:/var/run/docker.sock'] )
     cmd.append("-d")
     cmd.extend( [docker_tag] )
     cmd.extend(args)
@@ -115,15 +114,18 @@ def call_docker_kill(
     subprocess.check_call(cmd, close_fds=True, env=sys_env, stdout=subprocess.PIPE)
 
 def call_docker_rm(
-    name=None,
+    name=None, volume_delete=False,
     host=None, sudo=False
     ):
 
     docker_path = get_docker_path()
 
     cmd = [
-        docker_path, "rm", name
+        docker_path, "rm"
     ]
+    if volume_delete:
+        cmd.append("-v")
+    cmd.append(name)
 
     sys_env = dict(os.environ)
     if host is not None:
@@ -191,14 +193,39 @@ def call_docker_build(
     if proc.returncode != 0:
         raise Exception("Call Failed: %s" % (cmd))
 
+def call_docker_save(
+    tag,
+    output,
+    host=None,
+    sudo=False,
+    ):
+    
+    
+    docker_path = get_docker_path()
+
+    cmd = [
+        docker_path, "save", "-o", output, tag
+    ]
+    sys_env = dict(os.environ)
+    if host is not None:
+        sys_env['DOCKER_HOST'] = host
+    if sudo:
+        cmd = ['sudo'] + cmd
+    logging.info("executing: " + " ".join(cmd))
+    proc = subprocess.Popen(cmd, close_fds=True, env=sys_env)
+    stdout, stderr = proc.communicate()
+    if proc.returncode != 0:
+        raise Exception("Call Failed: %s" % (cmd))
+        
+
 
 def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=None,
     sudo=False, lib_data=[], auto_add=False, tool_data=None, file_store=None, metadata_suffix=None,
-    tool_dir=None, work_dir="/tmp", tool_docker=False, force=False,
+    tool_dir=None, work_dir="/tmp", tool_docker=False, force=False, tool_images=None,
     key="HSNiugRFvgT574F43jZ7N9F3"):
 
-    if force and run_status(name=name,host=host):
-        run_down(name=name, host=host, rm=True, work_dir=work_dir)
+    if force and run_status(name=name,host=host, sudo=sudo):
+        run_down(name=name, host=host, rm=True, work_dir=work_dir, sudo=sudo)
 
     env = {
         "GALAXY_CONFIG_CHECK_MIGRATE_TOOLS" : "False",
@@ -222,6 +249,10 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
         with open( os.path.join(config_dir, "import_tool_conf.xml"), "w" ) as handle:
             handle.write(TOOL_IMPORT_CONF)
         env['GALAXY_CONFIG_TOOL_CONFIG_FILE'] = "/config/import_tool_conf.xml,config/tool_conf.xml.main"
+    
+    if tool_images is not None:
+        mounts[os.path.abspath(tool_images)] = "/images"
+        
 
     data_load = []
     meta_data = {}
@@ -266,7 +297,10 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
             ))
         env["GALAXY_CONFIG_JOB_CONFIG_FILE"] = "/config/job_conf.xml"
         env['GALAXY_CONFIG_OUTPUTS_TO_WORKING_DIRECTORY'] = "True"
+        env['DOCKER_PARENT'] = "True"
         privledged=True
+        mounts['/var/run/docker.sock'] = '/var/run/docker.sock'
+
 
     call_docker_run(
         docker_tag,
@@ -292,7 +326,7 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
             res = requests.get(url, timeout=3)
             if res.status_code / 100 == 5:
                 continue
-            if res.status_code == 404:
+            if res.status_code in [404, 403]:
                 continue
             break
         except requests.exceptions.ConnectionError:
@@ -462,20 +496,18 @@ class RemoteGalaxy(object):
 
 def run_down(name="galaxy", host=None, rm=False, work_dir="/tmp", sudo=False):
     config_dir = os.path.join(work_dir, "warpdrive_%s" % (name))
-    if not os.path.exists(config_dir):
-        print "Config not found"
-        return
     try:
         call_docker_kill(
             name, host=host, sudo=sudo
         )
     except subprocess.CalledProcessError:
-        return
+        pass
     if rm:
         call_docker_rm(
-            name, host=host, sudo=sudo
+            name, host=host, sudo=sudo, volume_delete=True
         )
-        shutil.rmtree(config_dir)
+        if not os.path.exists(config_dir):
+            shutil.rmtree(config_dir)
 
 
 def run_status(name="galaxy", host=None, sudo=False):
@@ -519,19 +551,7 @@ def run_add(name="galaxy", work_dir="/tmp", files=[]):
         txt = handle.read()
         config = json.loads(txt)
 
-    data_load = []
-    for f in files:
-        fpath = os.path.abspath(f)
-        if os.path.isfile(fpath):
-            mapping = None
-            for ppath, dpath in config['lib_mapping'].items():
-                if mapping is None and fpath.startswith(ppath):
-                    mapping = os.path.join(dpath, os.path.relpath(fpath, ppath))
-            if mapping is None:
-                raise RequestException("File %s not in mounted lib directories" % (fpath))
-            data_load.append(mapping)
-
-    rg = RemoteGalaxy("http://%s:%s" % (config['host'], config['port']), 'admin')
+    rg = RemoteGalaxy("http://%s:%s" % (config['host'], config['port']), 'admin', path_mapping=config['lib_mapping'])
     library_id = rg.library_find("Imported")['id']
     folder_id = rg.library_find_contents(library_id, "/")['id']
 
@@ -591,7 +611,7 @@ def dom_scan_iter(node, stack, prefix):
             yield node, prefix, None, getText( node.childNodes )
 
 
-def run_build(tool_dir, host=None, sudo=False, tool=None, no_cache=False):
+def run_build(tool_dir, host=None, sudo=False, tool=None, no_cache=False, image_dir=None):
     for tool_conf in glob(os.path.join(tool_dir, "*", "*.xml")):
         dom = parseXML(tool_conf)
         s = dom_scan(dom.childNodes[0], "tool")
@@ -609,6 +629,17 @@ def run_build(tool_dir, host=None, sudo=False, tool=None, no_cache=False):
                                 tag=tag,
                                 dir=os.path.dirname(tool_conf)
                             )
+                            
+                            if image_dir is not None:
+                                if not os.path.exists(image_dir):
+                                    os.mkdir(image_dir)
+                                image_file = os.path.join(image_dir, "docker_" + tag.split(":")[0] + ".tar")
+                                call_docker_save(
+                                    host=host,
+                                    sudo=sudo,
+                                    tag=tag,
+                                    output=image_file
+                                )
 
 
 
@@ -634,11 +665,12 @@ JOB_CHILD_CONF = """<?xml version="1.0"?>
     <destinations default="cluster_docker">
         <destination id="cluster_docker" runner="slurm">
             <param id="docker_enabled">true</param>
-            <param id="docker_sudo">false</param>
+            <param id="docker_sudo">true</param>
             <param id="docker_net">bridge</param>
             <param id="docker_default_container_id">${TAG}</param>
             <param id="docker_volumes">${COMMON_VOLUMES}</param>
             <param id="docker_volumes_from">${NAME}</param>
+            <param id="docker_container_image_cache_path">/images</param>
         </destination>
         <destination id="cluster" runner="slurm">
         </destination>
@@ -659,8 +691,9 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers(title="subcommand")
 
     parser_up = subparsers.add_parser('up')
-    parser_up.add_argument("-t", "--tag", dest="docker_tag", default="bgruening/galaxy-stable")
+    parser_up.add_argument("-t", "--tag", dest="docker_tag", default="bgruening/galaxy-stable:dev")
     parser_up.add_argument("-x", "--tool-dir", default=None)
+    parser_up.add_argument("-ti", "--tool-images", default=None)
     parser_up.add_argument("-f", "--force", action="store_true", default=False)
     parser_up.add_argument("-d", "--tool-data", default=None)
     parser_up.add_argument("-s", "--file-store", default=None)
@@ -701,6 +734,8 @@ if __name__ == "__main__":
     parser_build.add_argument("--sudo", action="store_true", default=False)
     parser_build.add_argument("--no-cache", action="store_true", default=False)
     parser_build.add_argument("-t", "--tool", action="append", default=None)
+    parser_build.add_argument("-o", "--image-dir", default=None)
+    
 
     parser_build.add_argument("tool_dir")
     parser_build.set_defaults(func=run_build)
