@@ -1,0 +1,6 @@
+- type: input
+  label: file_to_hash
+- tool_id: secure_hash_message_digest
+  state:
+    input1:
+      $link: 0
