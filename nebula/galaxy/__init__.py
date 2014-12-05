@@ -1,5 +1,6 @@
 
 import os
+import json
 from glob import glob
 from xml.dom.minidom import parse as parseXML
 
@@ -38,14 +39,57 @@ def dom_scan_iter(node, stack, prefix):
 
 class WorkflowStep(object):
     def __init__(self, workflow, desc):
+        self.step_id = desc["id"]
         self.workflow = workflow
         self.desc = desc
         self.type = self.desc['type']
         self.tool_id = self.desc.get('tool_id', None)
+        state = json.loads(self.desc.get('tool_state', "null"))
+        self.tool_state = {}
+        if self.type == "tool":
+            for k, v in state.items():
+                if k not in ["__page__", "__rerun_remap_job_id__"]:
+                    self.tool_state[k] = json.loads(v)
+        elif self.type == "data_input":
+            self.tool_state['name'] = state['name']
+        self.input_connections = self.desc.get("input_connections", {})
+        self.inputs = self.desc.get("inputs", [])
+        self.outputs = self.desc.get("outputs", [])
+        self.annotation = self.desc.get("annotation", "")
     
     def validate_input(self, data, tool):
-        print tool.get_inputs()
+        tool_inputs = tool.get_inputs()
+        #print self.desc
+        #print self.state
+        #print self.input_connections
+        for tin in tool_inputs:
+            value = None
+            tin_state = self.find_state(tin)
+            if tin_state is not None:
+                value = tin_state
+            if tool_inputs[tin].type == 'data':
+                if value is None:
+                    if tin not in self.input_connections:
+                        if not tool_inputs[tin].optional:
+                            raise ValidationError("Missing input dataset: %s.%s" % (self.step_id, tin))
+            else:
+                if value is None:
+                    if self.step_id not in data or tin not in data[self.step_id]:
+                        print json.dumps(self.tool_state, indent=4)
+                        raise ValidationError("Missing input (%s): %s.%s" % (self.tool_id, self.step_id, tin))
+            #print "Tool input: ", tin, tool_inputs[tin], value
 
+    def find_state(self, param):
+        if param.count("|"):
+            return self.find_state_rec(param.split("|"), self.tool_state)
+        return self.tool_state.get(param, None)
+    
+    def find_state_rec(self, params, state):
+        if len(params) == 1:
+            return state[params[0]]
+        if params[0] not in state:
+            return None
+        return self.find_state_rec(params[1:],state[params[0]])
 
 class ValidationError(Exception):
     
@@ -64,14 +108,32 @@ class Workflow(object):
     def validate_input(self, data, toolbox):
         for step in self.steps():
             if step.type == 'tool':
-                print step.tool_id
                 if step.tool_id not in toolbox:
                     raise ValidationError("Missing Tool: %s" % (step.tool_id))
                 tool = toolbox[step.tool_id]
                 step.validate_input(data, tool)
-                
-
         return True
+    
+    def adjust_input(self, input):
+        out = {}
+        for k, v in input.items():
+            if k in self.desc['steps']:
+                out[k] == v
+            else:
+                found = False
+                for step in self.steps():
+                    #if they referred to a named input
+                    if step.type == 'data_input':
+                        if step.inputs[0]['name'] == k:
+                            found = True
+                            out[step.step_id] = v
+                    if step.type == 'tool':
+                        if step.annotation == k:
+                            found = True
+                            out[step.step_id] = v
+                if not found:
+                    out[k] = v
+        return out
 
 class ToolBox(object):
     def __init__(self):
@@ -98,7 +160,34 @@ class ToolBox(object):
         return self.tools[key]
                     
 
-
+class ToolParam(object):
+    def __init__(self, name, type, optional=False, label=""):
+        self.name = name
+        self.type = type
+        self.optional = optional
+        self.label = label
+    
+    """
+    def read(self, value):
+        if value is not None:
+            loaded = json.loads(value)
+            if isinstance(loaded, dict):
+                if loaded.get("__class__", None) == "RuntimeValue":
+                    return None
+            if self.type == 'data':
+                if value == 'null':
+                    return None
+            if self.type == 'boolean':
+                return bool(value)
+            if self.type == 'integer':
+                return int(loaded)
+            if self.type == 'float':
+                return float(loaded)
+            if self.type == 'text':
+                return str(loaded)
+            return loaded
+    """
+    
 class Tool(object):
     def __init__(self, config_file):
         self.config_file = os.path.abspath(config_file)
@@ -124,10 +213,18 @@ class Tool(object):
             param_name = param_elem.attributes['name'].value
             param_type = param_elem.attributes['type'].value
             if param_type in ['data', 'text', 'integer', 'float', 'boolean', 'select', 'hidden']:
+                optional = False
+                if "optional" in param_elem.attributes.keys():
+                    optional = bool(param_elem.attributes.get("optional").value)
+                label = ""
+                if "label" in param_elem.attributes.keys():
+                    label = param_elem.attributes.get("label").value
+                    
+                param = ToolParam(name=param_name, type=param_type, optional=optional, label=label)
                 if prefix is None:
-                    yield (param_name, param_type)
+                    yield (param_name, param)
                 else:
-                    yield (prefix + "." + param_name, param_type)
+                    yield (prefix + "|" + param_name, param)
             else:
                 raise ValidationError('unknown input_type: %s' % (param_type))
     
