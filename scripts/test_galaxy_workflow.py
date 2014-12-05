@@ -20,9 +20,17 @@ logging.basicConfig(level=logging.DEBUG)
 def test_workflow(args):
     with open(args.workflow) as handle:
         wdesc = yaml_to_workflow(handle.read())
-    print json.dumps(wdesc, indent=4)
+    #print json.dumps(wdesc, indent=4)
     workflow = Workflow(wdesc)
-
+    
+    toolbox = ToolBox()
+    toolbox.scan_dir(args.tools)
+    
+    for req_file in args.inputs:
+        with open(req_file) as handle:
+            req = json.loads(handle.read())
+        workflow.validate_input(req, toolbox)
+    
 
 if __name__ == "__main__":
     parser = ArgumentParser()
