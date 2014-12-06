@@ -112,6 +112,9 @@ class Workflow(object):
                     raise ValidationError("Missing Tool: %s" % (step.tool_id))
                 tool = toolbox[step.tool_id]
                 step.validate_input(data, tool)
+            if step.type == 'data_input':
+                if step.step_id not in data:
+                    raise ValidationError("Missing Data Input: %s" % (step.inputs[0]['name']))
         return True
     
     def adjust_input(self, input):
