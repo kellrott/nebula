@@ -180,6 +180,18 @@ def transform_tool(context, step):
         # TODO: this should be a list
         step["input_connections"][key] = input_connection_value[0]
 
+    if "runtime_values" in step:
+        if 'inputs' not in step:
+            step['inputs'] = []
+        for name in step['runtime_values']:
+            step['inputs'].append({
+                "description": "runtime parameter for tool %s" % (step['tool_id']),
+                "name": name
+            })
+            tool_state[name] = json.dumps({"__class__": "RuntimeValue"})
+        del step['runtime_values']
+
+
     __populate_tool_state(step, tool_state)
 
     # Handle outputs.

@@ -56,7 +56,7 @@ class WorkflowStep(object):
         self.inputs = self.desc.get("inputs", [])
         self.outputs = self.desc.get("outputs", [])
         self.annotation = self.desc.get("annotation", "")
-    
+
     def validate_input(self, data, tool):
         tool_inputs = tool.get_inputs()
         #print self.desc
@@ -71,19 +71,19 @@ class WorkflowStep(object):
                 if value is None:
                     if tin not in self.input_connections:
                         if not tool_inputs[tin].optional:
-                            raise ValidationError("Missing input dataset: %s.%s" % (self.step_id, tin))
+                            raise ValidationError("Tool %s Missing input dataset: %s.%s" % (self.tool_id, self.step_id, tin))
             else:
                 if value is None:
                     if self.step_id not in data or tin not in data[self.step_id]:
-                        print json.dumps(self.tool_state, indent=4)
-                        raise ValidationError("Missing input (%s): %s.%s" % (self.tool_id, self.step_id, tin))
+                        if tool_inputs[tin].value is None and not tool_inputs[tin].optional:
+                            raise ValidationError("Tool %s Missing input: %s.%s" % (self.tool_id, self.step_id, tin))
             #print "Tool input: ", tin, tool_inputs[tin], value
 
     def find_state(self, param):
         if param.count("|"):
             return self.find_state_rec(param.split("|"), self.tool_state)
         return self.tool_state.get(param, None)
-    
+
     def find_state_rec(self, params, state):
         if len(params) == 1:
             return state[params[0]]
@@ -92,19 +92,19 @@ class WorkflowStep(object):
         return self.find_state_rec(params[1:],state[params[0]])
 
 class ValidationError(Exception):
-    
+
     def __init__(self, message):
         super(ValidationError, self).__init__(message)
 
 class Workflow(object):
     def __init__(self, desc):
         self.desc = desc
-    
+
     def steps(self):
         for s in self.desc['steps'].values():
             yield WorkflowStep(self, s)
-            
-    
+
+
     def validate_input(self, data, toolbox):
         for step in self.steps():
             if step.type == 'tool':
@@ -116,7 +116,7 @@ class Workflow(object):
                 if step.step_id not in data:
                     raise ValidationError("Missing Data Input: %s" % (step.inputs[0]['name']))
         return True
-    
+
     def adjust_input(self, input):
         out = {}
         for k, v in input.items():
@@ -152,49 +152,29 @@ class ToolBox(object):
                     tool_id = s[0][2]['id']
                     self.config_files[tool_id] = tool_conf
                     self.tools[tool_id] = Tool(tool_conf)
-    
+
     def keys(self):
         return self.tools.keys()
-    
+
     def __contains__(self, key):
         return key in self.tools
-    
+
     def __getitem__(self, key):
         return self.tools[key]
-                    
+
 
 class ToolParam(object):
-    def __init__(self, name, type, optional=False, label=""):
+    def __init__(self, name, type, value=None, optional=False, label=""):
         self.name = name
         self.type = type
+        self.value = value
         self.optional = optional
         self.label = label
-    
-    """
-    def read(self, value):
-        if value is not None:
-            loaded = json.loads(value)
-            if isinstance(loaded, dict):
-                if loaded.get("__class__", None) == "RuntimeValue":
-                    return None
-            if self.type == 'data':
-                if value == 'null':
-                    return None
-            if self.type == 'boolean':
-                return bool(value)
-            if self.type == 'integer':
-                return int(loaded)
-            if self.type == 'float':
-                return float(loaded)
-            if self.type == 'text':
-                return str(loaded)
-            return loaded
-    """
-    
+
 class Tool(object):
     def __init__(self, config_file):
         self.config_file = os.path.abspath(config_file)
-        
+
         self.inputs = {}
         dom = parseXML(self.config_file)
         s = dom_scan(dom.childNodes[0], "tool/inputs/param")
@@ -210,7 +190,7 @@ class Tool(object):
                     for name, param in self._param_parse(p_elem, prefix=attrs['name']):
                         self.inputs[name] = param
 
-    
+
     def _param_parse(self, param_elem, prefix=None):
         if 'type' in param_elem.attributes.keys() and 'name' in param_elem.attributes.keys():
             param_name = param_elem.attributes['name'].value
@@ -222,14 +202,16 @@ class Tool(object):
                 label = ""
                 if "label" in param_elem.attributes.keys():
                     label = param_elem.attributes.get("label").value
-                    
-                param = ToolParam(name=param_name, type=param_type, optional=optional, label=label)
+                value = ""
+                if "value" in param_elem.attributes.keys():
+                    value = param_elem.attributes.get("value").value
+                param = ToolParam(name=param_name, type=param_type, value=value, optional=optional, label=label)
                 if prefix is None:
                     yield (param_name, param)
                 else:
                     yield (prefix + "|" + param_name, param)
             else:
                 raise ValidationError('unknown input_type: %s' % (param_type))
-    
+
     def get_inputs(self):
         return self.inputs
