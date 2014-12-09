@@ -22,6 +22,8 @@ from nebula.warpdrive import run_up, run_add, run_down
 from threading import Thread, RLock
 from nebula.exceptions import NotImplementedException
 
+from nebula.galaxy import Workflow
+
 def which(file):
     for path in os.environ["PATH"].split(":"):
         p = os.path.join(path, file)
@@ -95,7 +97,8 @@ class TaskJob:
         self.task_data = task_data
         self.service_name = self.task_data['service']
         self.history = None
-        self.outputs = None
+        self.outputs = []
+        self.error = None
 
     def set_running(self):
         pass
@@ -103,11 +106,14 @@ class TaskJob:
     def set_done(self):
         pass
 
-    def set_error(self):
-        pass
+    def set_error(self, msg="Failure"):
+        self.error = msg
 
     def get_inputs(self):
         return self.task_data['inputs']
+    
+    def get_parameters(self):
+        return self.task_data['parameters']
 
     def get_outputs(self):
         return self.outputs
@@ -140,11 +146,10 @@ class GalaxyService(Service):
                     wids = []
                     for k, v in job.get_inputs().items():
                         file_path = self.objectstore.get_filename(Target(v['uuid']))
-                        print "Loading FilePath:", file_path
+                        logging.info("Loading FilePath: %s" % (file_path))
                         nli = self.rg.library_paste_file(library_id, folder_id, v['uuid'], file_path, uuid=v['uuid'])
                         if 'id' not in nli:
-                            print nli
-                            raise Exception("Failed to load data")
+                            raise Exception("Failed to load data: %s" % (str(nli)))
                         wids.append(nli['id'])
 
                     #wait for the uploading of the files to finish
@@ -153,22 +158,27 @@ class GalaxyService(Service):
                         for w in wids:
                             d = self.rg.library_get_contents(library_id, w)
                             if d['state'] != 'ok':
-                                print d['state']
+                                logging.debug("Data loading: %s" % (d['state']))
                                 done = False
                         if done:
                             break
                         time.sleep(2)
 
                     self.rg.add_workflow(job.task_data['workflow'])
+                    wf = Workflow(job.task_data['workflow'])
                     inputs = {}
                     for k, v in job.get_inputs().items():
                         inputs[k] = {
                             'src' : "uuid",
                             'id' : v['uuid']
                         }
-                    invc = self.rg.call_workflow(job.task_data['workflow']['uuid'], inputs=inputs, params={})
-                    job.history = invc['history']
-                    job.outputs = list( {"id" : i, "history" : invc['history'], "src" : "hda"} for i in invc['outputs'] )
+                    invc = self.rg.call_workflow(job.task_data['workflow']['uuid'], inputs=inputs, params=job.get_parameters())
+                    if 'err_msg' in invc:
+                        logging.error("Workflow invocation failed")
+                        job.set_error("Workflow Invocation Failed")
+                    else:
+                        job.history = invc['history']
+                        job.outputs = list( {"id" : i, "history" : invc['history'], "src" : "hda"} for i in invc['outputs'] )
         down_config = {}
         if "work_dir" in self.config:
             down_config['work_dir'] = self.config['work_dir']
@@ -179,6 +189,8 @@ class GalaxyService(Service):
         if s == 'active':
             if self.rg is not None:
                 job = self.get_job(job_id)
+                if job.error is not None:
+                    return "error"
                 for data in job.outputs:
                     meta = self.rg.get_hda(job.history, data['id'])
                     if meta['state'] != 'ok':

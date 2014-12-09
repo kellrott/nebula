@@ -5,6 +5,7 @@ import json
 from nebula.dag import Target, TaskNode, TargetFuture
 from nebula.exceptions import CompileException
 from nebula.galaxy.yaml_to_workflow import yaml_to_workflow
+from nebula.galaxy import Workflow
 
 class GalaxyTargetFuture(TargetFuture):
 
@@ -38,8 +39,17 @@ class GalaxyWorkflow(TaskNode):
                         new_name = act["action_arguments"]["newname"]
                         old_name = act["output_name"]
                         outputs[new_name] = GalaxyTargetFuture(task_id=task_id, step_id=step['id'], output_name=old_name)
+        
         kwds['outputs'] = outputs
-        super(GalaxyWorkflow,self).__init__(task_id, **kwds)
+        wf = Workflow(self.data)
+        conf_kwds = {}
+        for k,v in kwds.items():
+            if k != 'inputs':
+                conf_kwds[k] = v
+        wf_req = wf.adjust_input(kwds.get("inputs", {}), label_translate=False, ds_translate=False)
+        conf_kwds['inputs'] = wf_req['ds_map']
+        self.parameters = wf_req['parameters']
+        super(GalaxyWorkflow,self).__init__(task_id, **conf_kwds)
 
         for step in self.data['steps'].values():
             if step['type'] == 'data_input':
@@ -54,6 +64,7 @@ class GalaxyWorkflow(TaskNode):
             'service' : 'galaxy',
             'workflow' : self.data,
             'inputs' : self.get_input_data(),
+            'parameters' : self.parameters,
             'outputs' : self.get_output_data(),
             'docker' : self.docker.name
         }

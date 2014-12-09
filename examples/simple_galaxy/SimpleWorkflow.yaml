@@ -9,6 +9,7 @@
     state:
         input:
             $link: input_file_1
+        lineNum: 1
 -
     tool_id: Show tail1
     annotation: tail_select

@@ -107,9 +107,10 @@ def run_workflow(args):
     #move the output data into the datastore
     for i in job_ids:
         job = service.get_job(i)
-        for a in job.get_outputs():
-            service.store_data(a, obj)
-            service.store_meta(a, doc)
+        if job.error is None:
+            for a in job.get_outputs():
+                service.store_data(a, obj)
+                service.store_meta(a, doc)
 
     print "Done"
     if not args.hold:

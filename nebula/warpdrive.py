@@ -456,10 +456,19 @@ class RemoteGalaxy(object):
                     dsmap[step_id] = inputs[str(step_id)]
                 elif step_desc["tool_inputs"]["name"] in inputs:
                     dsmap[step_id] = inputs[step_desc["tool_inputs"]["name"]]
-
+        print "request parameters", params
+        parameters = {}
+        for step_id, step_desc in wf_desc['steps'].iteritems():
+            if step_desc['type'] == 'tool':
+                if step_id in params:
+                    parameters[step_id] = params[step_id]
+                elif step_desc['annotation'] in params:
+                    parameters[step_id] = params[step_desc['annotation']]
+            
         data = {
             'workflow_id' : workflow_id,
-            'ds_map' : dsmap
+            'ds_map' : dsmap,
+            'parameters' : parameters
         }
         return self.post("/api/workflows", data )
         #return self.post("/api/workflows/%s/usage" % (workflow_id), data )

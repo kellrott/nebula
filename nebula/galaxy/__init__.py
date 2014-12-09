@@ -118,7 +118,9 @@ class Workflow(object):
                     raise ValidationError("Missing Data Input: %s" % (step.inputs[0]['name']))
         return True
 
-    def adjust_input(self, input):
+    def adjust_input(self, input, label_translate=True, ds_translate=True):
+        dsmap = {}
+        parameters = {}
         out = {}
         for k, v in input.items():
             if k in self.desc['steps']:
@@ -126,17 +128,25 @@ class Workflow(object):
             else:
                 found = False
                 for step in self.steps():
+                    label = k
+                    if label_translate:
+                        label = step.step_id
                     #if they referred to a named input
                     if step.type == 'data_input':
                         if step.inputs[0]['name'] == k:
                             found = True
-                            out[step.step_id] = v
+                            if ds_translate:
+                                dsmap[label] = {'src':'uuid', 'id' : v.uuid}
+                            else:
+                                dsmap[label] = v
                     if step.type == 'tool':
                         if step.annotation == k:
                             found = True
-                            out[step.step_id] = v
+                            parameters[label] = v
                 if not found:
                     out[k] = v
+        out['ds_map'] = dsmap
+        out['parameters'] = parameters
         return out
 
 class ToolBox(object):
