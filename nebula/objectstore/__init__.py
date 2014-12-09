@@ -2,13 +2,15 @@
 import os
 import stat
 import shutil
-from urlparse import urlparse
+from urlparse import urlparse, ParseResult
 
 def init_objectstore_url(url):
     p = urlparse(url)
     if p.scheme == '':
         return DiskObjectStore(DiskObjectStoreConfig(), file_path=url)
-    
+    if p.scheme == 'objectspace':
+        from nebula.objectstore.objectspace import ObjectSpaceFile
+        return ObjectSpaceFile(DiskObjectStoreConfig(), ParseResult("http", p.netloc, p.path, None, None, None).geturl())
     raise Exception("Unknown ObjectStore %s" % (url))
 
 class ObjectStore(object):

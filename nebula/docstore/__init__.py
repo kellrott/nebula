@@ -3,14 +3,17 @@ import os
 import uuid
 import json
 from glob import glob
-from urlparse import urlparse
+from urlparse import urlparse, ParseResult
 
 
 def init_docstore_url(url):
     p = urlparse(url)
     if p.scheme == '':
         return FileDocStore(file_path=url)
-    
+    if p.scheme == 'objectspace':
+        from nebula.docstore.objectspace import ObjectSpaceDoc
+        return ObjectSpaceDoc(ParseResult("http", p.netloc, p.path, None, None, None).geturl())
+
     raise Exception("Unknown ObjectStore %s" % (url))
 
 
