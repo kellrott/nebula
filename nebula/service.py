@@ -169,7 +169,10 @@ class GalaxyService(Service):
                     invc = self.rg.call_workflow(job.task_data['workflow']['uuid'], inputs=inputs, params={})
                     job.history = invc['history']
                     job.outputs = list( {"id" : i, "history" : invc['history'], "src" : "hda"} for i in invc['outputs'] )
-        run_down(name=self.config['name'], rm=True, sudo=self.config.get("sudo", False))
+        down_config = {}
+        if "work_dir" in self.config:
+            down_config['work_dir'] = self.config['work_dir']
+        run_down(name=self.config['name'], rm=True, sudo=self.config.get("sudo", False), **down_config)
 
     def status(self, job_id):
         s = super(GalaxyService, self).status(job_id)
@@ -191,53 +194,13 @@ class GalaxyService(Service):
         path = object_store.get_filename(hda)
         self.rg.download(meta['download_url'], path)
         object_store.update_from_file(hda)
-    
+
     def store_meta(self, data, doc_store):
         meta = self.rg.get_hda(data['history'], data['id'])
+        prov = self.rg.get_provenance(data['history'], data['id'])
+        meta['provenance'] = prov
         doc_store.put(meta['uuid'], meta)
 
-
-"""
-class ShellService(Service):
-
-    def run(self, data):
-        script = data['script']
-        docker_image = data.get('docker', 'base')
-        self.workdir = self.config.workdir
-        self.execdir = os.path.abspath(tempfile.mkdtemp(dir=self.workdir, prefix="nebula_"))
-
-        with open(os.path.join(self.execdir, "run.sh"), "w") as handle:
-            handle.write(script)
-
-        docker_path = which('docker')
-        if docker_path is None:
-            raise Exception("Cannot find docker")
-
-        cmd = [
-            docker_path, "run", "--rm", "-u", str(os.geteuid()),
-            "-v", "%s:/work" % self.execdir, "-w", "/work", docker_image,
-            "/bin/bash", "/work/run.sh"
-        ]
-        env = dict(os.environ)
-        if self.config.docker is not None:
-            env['DOCKER_HOST'] = self.config.docker
-
-        logging.info("executing: " + " ".join(cmd))
-        proc = subprocess.Popen(cmd, close_fds=True, env=env)
-        proc.communicate()
-        if proc.returncode != 0:
-            raise Exception("Call Failed: %s" % (cmd))
-
-        self.outputs = {}
-        for k, v in data['outputs'].items():
-            self.outputs[k] = {
-                'store_path' : os.path.join(self.execdir, v['path']),
-                'uuid' : v['uuid']
-            }
-
-    def getOutputs(self):
-        return self.outputs
-"""
 
 service_map = {
     #'shell' : ShellService,

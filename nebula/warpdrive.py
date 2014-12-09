@@ -199,8 +199,8 @@ def call_docker_save(
     host=None,
     sudo=False,
     ):
-    
-    
+
+
     docker_path = get_docker_path()
 
     cmd = [
@@ -216,7 +216,7 @@ def call_docker_save(
     stdout, stderr = proc.communicate()
     if proc.returncode != 0:
         raise Exception("Call Failed: %s" % (cmd))
-        
+
 
 
 def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=None,
@@ -249,10 +249,10 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
         with open( os.path.join(config_dir, "import_tool_conf.xml"), "w" ) as handle:
             handle.write(TOOL_IMPORT_CONF)
         env['GALAXY_CONFIG_TOOL_CONFIG_FILE'] = "/config/import_tool_conf.xml,config/tool_conf.xml.main"
-    
+
     if tool_images is not None:
         mounts[os.path.abspath(tool_images)] = "/images"
-        
+
 
     data_load = []
     meta_data = {}
@@ -434,6 +434,9 @@ class RemoteGalaxy(object):
 
     def get_hda(self, history, hda):
         return self.get("/api/histories/%s/contents/%s" % (history, hda))
+
+    def get_provenance(self, history, hda):
+        return self.get("/api/histories/%s/contents/%s/provenance" % (history, hda))
 
     def add_workflow(self, wf):
         self.post("/api/workflows/upload", { 'workflow' : wf } )
@@ -629,7 +632,7 @@ def run_build(tool_dir, host=None, sudo=False, tool=None, no_cache=False, image_
                                 tag=tag,
                                 dir=os.path.dirname(tool_conf)
                             )
-                            
+
                             if image_dir is not None:
                                 if not os.path.exists(image_dir):
                                     os.mkdir(image_dir)
@@ -735,7 +738,7 @@ if __name__ == "__main__":
     parser_build.add_argument("--no-cache", action="store_true", default=False)
     parser_build.add_argument("-t", "--tool", action="append", default=None)
     parser_build.add_argument("-o", "--image-dir", default=None)
-    
+
 
     parser_build.add_argument("tool_dir")
     parser_build.set_defaults(func=run_build)

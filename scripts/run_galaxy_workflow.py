@@ -61,21 +61,30 @@ def run_workflow(args):
         inputs = {}
         for k, v in meta.items():
             if isinstance(v,dict):
-                t = Target(v['uuid'])
-                if not obj.exists(t):
-                    if t.uuid not in data_map:
-                        raise Exception("Can't find input data: %s" % (t.uuid))
-                    obj.update_from_file(t, data_map[t.uuid], create=True)
-                    doc.put(t.uuid, t.to_dict())
-                inputs[k] = t
-        task = GalaxyWorkflow('task_%s' % (i), args.workflow, inputs=inputs, docker=args.galaxy, tool_dir=args.tools)
+                #need better way to diff between parameters and inputs
+                if 'uuid' in v:
+                    t = Target(v['uuid'])
+                    if not obj.exists(t):
+                        if t.uuid not in data_map:
+                            raise Exception("Can't find input data: %s" % (t.uuid))
+                        obj.update_from_file(t, data_map[t.uuid], create=True)
+                        doc.put(t.uuid, t.to_dict())
+                    inputs[k] = t
+                else:
+                    inputs[k] = v
+        if args.workflow is not None:
+            task = GalaxyWorkflow('task_%s' % (i), args.workflow, inputs=inputs, docker=args.galaxy, tool_dir=args.tools)
+        else:
+            with open(args.yaml_workflow) as handle:
+                yaml_text = handle.read()
+            task = GalaxyWorkflow('task_%s' % (i), yaml=yaml_text, inputs=inputs, docker=args.galaxy, tool_dir=args.tools)
         task_data = task.get_task_data()
         tasks.append(task_data)
 
     #this side happens on the worker node
     service = ServiceFactory('galaxy', objectstore=obj,
         lib_data=[args.object_store], tool_dir=args.tools,
-        docker_tag=args.galaxy, work_dir=args.warpdrive_dir, sudo=args.sudo,
+        docker_tag=args.galaxy, work_dir=args.warpdrive_dir, sudo=args.sudo, force=True,
         tool_docker=True)
     service.start()
     job_ids = []
@@ -103,23 +112,27 @@ def run_workflow(args):
             service.store_meta(a, doc)
 
     print "Done"
-    service.stop()
+    if not args.hold:
+        service.stop()
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("-g", "--galaxy", help="Galaxy Runner Image", default="galaxy")
+    parser.add_argument("-g", "--galaxy", help="Galaxy Runner Image", default="bgruening/galaxy-stable:dev")
     parser.add_argument("-c", "--warpdrive-dir", help="Directory For Warpdrive config mounting", default="/tmp")
-    parser.add_argument("-w", "--workflow", help="Galaxy Workflow File", required=True)
+    parser.add_argument("-w", "--workflow", help="Galaxy Workflow File")
+    parser.add_argument("-y", "--yaml-workflow", help="Galaxy YAML Workflow File")
     parser.add_argument("-d", "--data", help="Data directory (metadata as .json files)", required=True)
     parser.add_argument("-t", "--tools", help="Tool Directory", required=True)
     parser.add_argument("-s", "--object-store", default="./nebula_data")
     parser.add_argument("-b", "--doc-store", default="./nebula_docs")
     parser.add_argument("-l", "--local-store", default="./nebula_work")
     parser.add_argument("--sudo", action="store_true", default=False)
-
-
+    parser.add_argument("--hold", action="store_true", default=False)
     parser.add_argument("inputs", nargs="+", default=[])
 
     args = parser.parse_args()
+    if args.yaml_workflow is None and args.workflow is None:
+        sys.stderr.write("Must define workflow with -w or -y flags")
+        sys.exit(1)
     run_workflow(args)

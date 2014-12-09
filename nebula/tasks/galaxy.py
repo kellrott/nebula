@@ -4,6 +4,7 @@ import os
 import json
 from nebula.dag import Target, TaskNode, TargetFuture
 from nebula.exceptions import CompileException
+from nebula.galaxy.yaml_to_workflow import yaml_to_workflow
 
 class GalaxyTargetFuture(TargetFuture):
 
@@ -13,16 +14,21 @@ class GalaxyTargetFuture(TargetFuture):
         super(GalaxyTargetFuture, self).__init__(task_id)
 
 class GalaxyWorkflow(TaskNode):
-    def __init__(self, task_id, workflow_file, tool_dir=None, **kwds):
+    def __init__(self, task_id, workflow_file=None, yaml=None, tool_dir=None, **kwds):
         if 'docker' not in kwds:
             kwds['docker'] = "bgruening/galaxy-stable"
-        self.workflow_file = os.path.abspath(workflow_file)
-        self.tool_dir = None
 
-        #parse the input and validate the inputs
-        with open(self.workflow_file) as handle:
-            txt = handle.read()
-        self.data = json.loads(txt)
+        self.tool_dir = None
+        self.data = None
+
+        if workflow_file is not None:
+            with open(workflow_file) as handle:
+                self.data = json.loads(handle.read())
+        if yaml is not None:
+            self.data = yaml_to_workflow(yaml)
+
+        if self.data is None:
+            raise Exception("Workflow not defined")
 
         outputs = {}
         for step in self.data['steps'].values():
@@ -34,7 +40,7 @@ class GalaxyWorkflow(TaskNode):
                         outputs[new_name] = GalaxyTargetFuture(task_id=task_id, step_id=step['id'], output_name=old_name)
         kwds['outputs'] = outputs
         super(GalaxyWorkflow,self).__init__(task_id, **kwds)
-        print kwds['inputs']
+
         for step in self.data['steps'].values():
             if step['type'] == 'data_input':
                 name = step['inputs'][0]['name']

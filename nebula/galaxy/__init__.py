@@ -59,9 +59,6 @@ class WorkflowStep(object):
 
     def validate_input(self, data, tool):
         tool_inputs = tool.get_inputs()
-        #print self.desc
-        #print self.state
-        #print self.input_connections
         for tin in tool_inputs:
             value = None
             tin_state = self.find_state(tin)
@@ -77,7 +74,12 @@ class WorkflowStep(object):
                     if self.step_id not in data or tin not in data[self.step_id]:
                         if tool_inputs[tin].value is None and not tool_inputs[tin].optional:
                             raise ValidationError("Tool %s Missing input: %s.%s" % (self.tool_id, self.step_id, tin))
-            #print "Tool input: ", tin, tool_inputs[tin], value
+                else:
+                    if isinstance(value, dict):
+                        #if they have missed one of the required runtime values in the pipeline
+                        if value.get("__class__", None) == 'RuntimeValue':
+                            if self.step_id not in data or tin not in data[self.step_id]:
+                                raise ValidationError("Tool %s Missing runtime value: %s.%s" % (self.tool_id, self.step_id, tin))
 
     def find_state(self, param):
         if param.count("|"):
@@ -103,7 +105,6 @@ class Workflow(object):
     def steps(self):
         for s in self.desc['steps'].values():
             yield WorkflowStep(self, s)
-
 
     def validate_input(self, data, toolbox):
         for step in self.steps():
@@ -144,6 +145,10 @@ class ToolBox(object):
         self.tools = {}
 
     def scan_dir(self, tool_dir):
+        """
+        scan through directory looking for tool_dir/*/*.xml files and
+        attempting to load them
+        """
         for tool_conf in glob(os.path.join(os.path.abspath(tool_dir), "*", "*.xml")):
             dom = parseXML(tool_conf)
             s = list(dom_scan(dom.childNodes[0], "tool"))
@@ -195,7 +200,7 @@ class Tool(object):
         if 'type' in param_elem.attributes.keys() and 'name' in param_elem.attributes.keys():
             param_name = param_elem.attributes['name'].value
             param_type = param_elem.attributes['type'].value
-            if param_type in ['data', 'text', 'integer', 'float', 'boolean', 'select', 'hidden']:
+            if param_type in ['data', 'text', 'integer', 'float', 'boolean', 'select', 'hidden', 'baseurl', 'genomebuild', 'data_column', 'drill_down']:
                 optional = False
                 if "optional" in param_elem.attributes.keys():
                     optional = bool(param_elem.attributes.get("optional").value)
