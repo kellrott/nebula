@@ -3,6 +3,7 @@
 
 import os
 import re
+import sys
 import json
 import time
 import logging
@@ -34,19 +35,24 @@ def test_workflow(args):
     for req_file in args.inputs:
         with open(req_file) as handle:
             req = json.loads(handle.read())
-        req = workflow.adjust_input(req)
+        req = workflow.adjust_input(req,  label_translate=True, ds_translate=False)
         print "Checking", req
         workflow.validate_input(req, toolbox)
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument("-w", "--workflow", help="Galaxy Workflow File", required=True)
-    parser.add_argument("-t", "--tools", help="Tool Directory", required=True)
-    parser.add_argument("-y", "--yaml", action="store_true", default=False)
-    parser.add_argument("-v", "--verbose", action="store_true", default=False)
+    parser = ArgumentParser()    
+    subparsers = parser.add_subparsers(title="subcommand")
 
-    parser.add_argument("inputs", nargs="+", default=[])
+    parser_test = subparsers.add_parser('test')
+
+    parser_test.add_argument("-w", "--workflow", help="Galaxy Workflow File", required=True)
+    parser_test.add_argument("-t", "--tools", help="Tool Directory", required=True)
+    parser_test.add_argument("-y", "--yaml", action="store_true", default=False)
+    parser_test.add_argument("-v", "--verbose", action="store_true", default=False)
+    parser_test.add_argument("inputs", nargs="+", default=[])
+    parser_test.set_defaults(func=test_workflow)
 
     args = parser.parse_args()
-    test_workflow(args)
+    sys.exit(args.func(args))
+

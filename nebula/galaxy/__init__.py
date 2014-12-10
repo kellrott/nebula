@@ -71,14 +71,14 @@ class WorkflowStep(object):
                             raise ValidationError("Tool %s Missing input dataset: %s.%s" % (self.tool_id, self.step_id, tin))
             else:
                 if value is None:
-                    if self.step_id not in data or tin not in data[self.step_id]:
+                    if self.step_id not in data['ds_map'] or tin not in data[self.step_id]:
                         if tool_inputs[tin].value is None and not tool_inputs[tin].optional:
                             raise ValidationError("Tool %s Missing input: %s.%s" % (self.tool_id, self.step_id, tin))
                 else:
                     if isinstance(value, dict):
                         #if they have missed one of the required runtime values in the pipeline
                         if value.get("__class__", None) == 'RuntimeValue':
-                            if self.step_id not in data or tin not in data[self.step_id]:
+                            if self.step_id not in data['parameters'] or tin not in data['parameters'][self.step_id]:
                                 raise ValidationError("Tool %s Missing runtime value: %s.%s" % (self.tool_id, self.step_id, tin))
 
     def find_state(self, param):
@@ -114,7 +114,7 @@ class Workflow(object):
                 tool = toolbox[step.tool_id]
                 step.validate_input(data, tool)
             if step.type == 'data_input':
-                if step.step_id not in data:
+                if step.step_id not in data['ds_map']:
                     raise ValidationError("Missing Data Input: %s" % (step.inputs[0]['name']))
         return True
 
