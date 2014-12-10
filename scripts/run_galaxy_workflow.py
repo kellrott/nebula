@@ -69,17 +69,17 @@ def run_workflow(args):
             inputs[k] = t
         params = meta.get("parameters", {})
         if args.workflow is not None:
-            task = GalaxyWorkflow('task_%s' % (i), args.workflow, inputs=inputs, parameters=params, docker=args.galaxy, tool_dir=args.tools)
+            task = GalaxyWorkflow('task_%s' % (i), args.workflow, inputs=inputs, parameters=params, docker=args.galaxy, tool_dir=args.tools, tool_data=args.tool_data)
         else:
             with open(args.yaml_workflow) as handle:
                 yaml_text = handle.read()
-            task = GalaxyWorkflow('task_%s' % (i), yaml=yaml_text, inputs=inputs, parameters=params, docker=args.galaxy, tool_dir=args.tools)
+            task = GalaxyWorkflow('task_%s' % (i), yaml=yaml_text, inputs=inputs, parameters=params, docker=args.galaxy, tool_dir=args.tools, tool_data=args.tool_data)
         task_data = task.get_task_data()
         tasks.append(task_data)
 
     #this side happens on the worker node
     service = ServiceFactory('galaxy', objectstore=obj,
-        lib_data=[args.object_store], tool_dir=args.tools,
+        lib_data=[args.object_store], tool_dir=args.tools, tool_data=args.tool_data,
         docker_tag=args.galaxy, work_dir=args.warpdrive_dir, sudo=args.sudo, force=True,
         tool_docker=True)
     service.start()
@@ -121,6 +121,7 @@ if __name__ == "__main__":
     parser.add_argument("-y", "--yaml-workflow", help="Galaxy YAML Workflow File")
     parser.add_argument("-d", "--data", help="Data directory (metadata as .json files)", required=True)
     parser.add_argument("-t", "--tools", help="Tool Directory", required=True)
+    parser.add_argument("-td", "--tool-data", help="Tool Directory", default=None)
     parser.add_argument("-s", "--object-store", default="./nebula_data")
     parser.add_argument("-b", "--doc-store", default="./nebula_docs")
     parser.add_argument("-l", "--local-store", default="./nebula_work")
