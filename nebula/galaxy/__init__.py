@@ -122,7 +122,7 @@ class Workflow(object):
         dsmap = {}
         parameters = {}
         out = {}
-        for k, v in input.items():
+        for k, v in input.get("ds_map", {}).items():
             if k in self.desc['steps']:
                 out[k] == v
             else:
@@ -139,12 +139,20 @@ class Workflow(object):
                                 dsmap[label] = {'src':'uuid', 'id' : v.uuid}
                             else:
                                 dsmap[label] = v
+
+        for k, v in input.get("parameters", {}).items():
+            if k in self.desc['steps']:
+                out[k] == v
+            else:
+                found = False
+                for step in self.steps():
+                    label = k
+                    if label_translate:
+                        label = step.step_id
                     if step.type == 'tool':
                         if step.annotation == k:
                             found = True
                             parameters[label] = v
-                if not found:
-                    out[k] = v
         out['ds_map'] = dsmap
         out['parameters'] = parameters
         return out
