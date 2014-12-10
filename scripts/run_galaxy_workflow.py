@@ -59,25 +59,21 @@ def run_workflow(args):
         with open(input_file) as handle:
             meta = json.loads(handle.read())
         inputs = {}
-        for k, v in meta.items():
-            if isinstance(v,dict):
-                #need better way to diff between parameters and inputs
-                if 'uuid' in v:
-                    t = Target(v['uuid'])
-                    if not obj.exists(t):
-                        if t.uuid not in data_map:
-                            raise Exception("Can't find input data: %s" % (t.uuid))
-                        obj.update_from_file(t, data_map[t.uuid], create=True)
-                        doc.put(t.uuid, t.to_dict())
-                    inputs[k] = t
-                else:
-                    inputs[k] = v
+        for k, v in meta.get('ds_map').items():
+            t = Target(v['uuid'])
+            if not obj.exists(t):
+                if t.uuid not in data_map:
+                    raise Exception("Can't find input data: %s" % (t.uuid))
+                obj.update_from_file(t, data_map[t.uuid], create=True)
+                doc.put(t.uuid, t.to_dict())
+            inputs[k] = t
+        params = meta.get("parameters", {})
         if args.workflow is not None:
-            task = GalaxyWorkflow('task_%s' % (i), args.workflow, inputs=inputs, docker=args.galaxy, tool_dir=args.tools)
+            task = GalaxyWorkflow('task_%s' % (i), args.workflow, inputs=inputs, parameters=params, docker=args.galaxy, tool_dir=args.tools)
         else:
             with open(args.yaml_workflow) as handle:
                 yaml_text = handle.read()
-            task = GalaxyWorkflow('task_%s' % (i), yaml=yaml_text, inputs=inputs, docker=args.galaxy, tool_dir=args.tools)
+            task = GalaxyWorkflow('task_%s' % (i), yaml=yaml_text, inputs=inputs, parameters=params, docker=args.galaxy, tool_dir=args.tools)
         task_data = task.get_task_data()
         tasks.append(task_data)
 
