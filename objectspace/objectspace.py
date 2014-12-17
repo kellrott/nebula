@@ -8,10 +8,6 @@ import tornado.ioloop
 import tornado.web
 import pymongo
 
-class MainHandler(tornado.web.RequestHandler):
-    def get(self):
-        self.write("test")
-
 
 class DBBase(tornado.web.RequestHandler):
     def initialize(self, server, port, database, fsbase):
@@ -19,7 +15,7 @@ class DBBase(tornado.web.RequestHandler):
         self.db = self.conn[database]
         self.collection = self.db['objects']
         self.fsbase = os.path.abspath(fsbase)
-    
+
     def report_error(self, message):
         self.write(json.dumps({"error" : message}))
 
@@ -30,14 +26,25 @@ class DBBase(tornado.web.RequestHandler):
             self.report_error("ID not UUID")
             return False
         return True
-    
+
     def id2path(self, id):
         dirname = os.path.join(self.fsbase, id[0], id[:2])
         if not os.path.exists(dirname):
             os.makedirs(dirname)
         path = os.path.join( dirname, id )
         return "file://" + path
-        
+
+class MainHandler(DBBase):
+    def get(self):
+        info = {
+            'model_class' : "ServerInfo",
+            'name' : 'ObjectSpace',
+            'version' : "0.0.1",
+            'records' : self.collection.count()
+        }
+        self.write(json.dumps(info))
+
+
 
 class ListHandler(DBBase):
     def get(self):
@@ -46,7 +53,7 @@ class ListHandler(DBBase):
 
 
 class DocHandler(DBBase):
-    
+
     def get(self, id):
         if not self.check_id(id):
             return
@@ -79,15 +86,15 @@ class PathHandler(DBBase):
 
 
 def run_main(args):
-    
+
     config = dict(
         server=args.mongo.split(":")[0],
         port=int(args.mongo.split(":")[1]), database=args.db,
         fsbase=args.fsbase
     )
-    
+
     application = tornado.web.Application([
-        (r"/", MainHandler),
+        (r"/", MainHandler, config),
         (r"/api/objects", ListHandler, config),
         (r"/api/objects/(.*)", DocHandler, config),
         (r"/api/locs/(.*)", PathHandler, config),
@@ -105,7 +112,7 @@ if __name__ == "__main__":
     parser.add_argument("--fsbase", default="files")
     parser.add_argument("--port", type=int, default=9000)
     parser.add_argument("--db", default="objectspace")
-    
+
     args = parser.parse_args()
     args.fsbase = os.path.abspath(args.fsbase)
     run_main(args)
