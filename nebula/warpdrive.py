@@ -301,7 +301,7 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
             )
 
         smp_tools = []
-        for tool, conf in smp:
+        for tool, count in smp:
             smp_tools.append( string.Template(SMP_TOOL_CONF).substitute(
                     DEST_NAME="docker_cluster_smp%s" % (count),
                     TOOL_ID=tool
