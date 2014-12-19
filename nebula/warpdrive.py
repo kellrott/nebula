@@ -221,7 +221,7 @@ def call_docker_save(
 
 def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=None,
     sudo=False, lib_data=[], auto_add=False, tool_data=None, file_store=None, metadata_suffix=None,
-    tool_dir=None, work_dir="/tmp", tool_docker=False, force=False, tool_images=None, smp=[],
+    tool_dir=None, work_dir="/tmp", tool_docker=False, force=False, tool_images=None, smp=[], cpus=None,
     key="HSNiugRFvgT574F43jZ7N9F3"):
 
     if force and run_status(name=name,host=host, sudo=sudo):
@@ -288,18 +288,18 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
 
     if tool_docker:
         common_volumes = ",".join( "%s:%s:ro" % (k,v) for k,v in lib_mapping.items() )
-        
+
         #for every different count of SMPs, create a different destination
         smp_destinations = []
         for count in set( a[1] for a in smp ):
             smp_destinations.append( string.Template(SMP_DEST_CONF).substitute(
-                DEST_NAME="docker_cluster_smp%s" % (count), 
+                DEST_NAME="docker_cluster_smp%s" % (count),
                 TAG=docker_tag,
                 NAME=name,
                 NCPUS=count,
                 COMMON_VOLUMES=common_volumes)
             )
-            
+
         smp_tools = []
         for tool, conf in smp:
             smp_tools.append( string.Template(SMP_TOOL_CONF).substitute(
@@ -307,7 +307,7 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
                     TOOL_ID=tool
                 )
             )
-            
+
         mounts[config_dir] = "/config"
         job_conf = string.Template(JOB_CHILD_CONF).substitute(
             TAG=docker_tag,
@@ -319,10 +319,13 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
         with open( os.path.join(config_dir, "job_conf.xml"), "w" ) as handle:
             handle.write(job_conf)
         env["GALAXY_CONFIG_JOB_CONFIG_FILE"] = "/config/job_conf.xml"
-        env['GALAXY_CONFIG_OUTPUTS_TO_WORKING_DIRECTORY'] = "True"
+        #env['GALAXY_CONFIG_OUTPUTS_TO_WORKING_DIRECTORY'] = "True"
         env['DOCKER_PARENT'] = "True"
         privledged=True
         mounts['/var/run/docker.sock'] = '/var/run/docker.sock'
+
+    if cpus is not None:
+        env['SLURM_CPUS'] = cpus
 
     call_docker_run(
         docker_tag,

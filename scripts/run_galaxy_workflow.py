@@ -82,7 +82,7 @@ def run_workflow(args):
     service = ServiceFactory('galaxy', objectstore=obj,
         lib_data=[args['object_store']], tool_dir=args['tools'], tool_data=args['tool_data'],
         docker_tag=args['galaxy'], work_dir=args['warpdrive_dir'], sudo=args['sudo'], force=True,
-        tool_docker=True, smp=args['smp'])
+        tool_docker=True, smp=args['smp'], cpus=args['cpus'])
     service.start()
     job_ids = []
     for task_data in tasks:
@@ -125,6 +125,7 @@ if __name__ == "__main__":
     parser.add_argument("-t", "--tools", help="Tool Directory", required=True)
     parser.add_argument("-td", "--tool-data", help="Tool Directory", default=None)
     parser.add_argument("--smp", action="append", nargs=2, default=[])
+    parser.add_argument("--cpus", type=int, default=None)
     parser.add_argument("-s", "--object-store", default="./nebula_data")
     parser.add_argument("-b", "--doc-store", default="./nebula_docs")
     parser.add_argument("-l", "--local-store", default="./nebula_work")
