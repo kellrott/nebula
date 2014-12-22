@@ -55,7 +55,8 @@ def run_workflow(args):
 
 
     #this side happens on the master node
-    tasks = []
+    tasks = {}
+    task_request = {}
     for i, input_file in enumerate(args['inputs']):
         with open(input_file) as handle:
             meta = json.loads(handle.read())
@@ -69,14 +70,16 @@ def run_workflow(args):
                 doc.put(t.uuid, t.to_dict())
             inputs[k] = t
         params = meta.get("parameters", {})
+        task_name = 'task_%s' % (i)
         if args['workflow'] is not None:
-            task = GalaxyWorkflow('task_%s' % (i), args['workflow'], inputs=inputs, parameters=params, docker=args['galaxy'], tool_dir=args['tools'], tool_data=args['tool_data'])
+            task = GalaxyWorkflow(task_name, args['workflow'], inputs=inputs, parameters=params, docker=args['galaxy'], tool_dir=args['tools'], tool_data=args['tool_data'])
         else:
             with open(args['yaml_workflow']) as handle:
                 yaml_text = handle.read()
-            task = GalaxyWorkflow('task_%s' % (i), yaml=yaml_text, inputs=inputs, parameters=params, docker=args['galaxy'], tool_dir=args['tools'], tool_data=args['tool_data'])
+            task = GalaxyWorkflow(task_name, yaml=yaml_text, inputs=inputs, parameters=params, docker=args['galaxy'], tool_dir=args['tools'], tool_data=args['tool_data'])
+        task_request[task_name] = meta
         task_data = task.get_task_data()
-        tasks.append(task_data)
+        tasks[task_name] = task_data
 
     #this side happens on the worker node
     service = ServiceFactory('galaxy', objectstore=obj,
@@ -84,30 +87,41 @@ def run_workflow(args):
         docker_tag=args['galaxy'], work_dir=args['warpdrive_dir'], sudo=args['sudo'], force=True,
         tool_docker=True, smp=args['smp'], cpus=args['cpus'])
     service.start()
-    job_ids = []
-    for task_data in tasks:
+    task_job_ids = {}
+    for task_name, task_data in tasks.items():
         task = TaskJob(task_data)
         i = service.submit(task)
-        job_ids.append(i)
+        print "job_id", i
+        task_job_ids[task_name] = i
 
+    sleep_time = 1
     while True:
         waiting = False
-        for i in job_ids:
+        for i in task_job_ids.values():
             status = service.status(i)
-            print "Status", status
+            print "Status", status, i
             if status not in ['ok', 'error']:
                 waiting = True
         if not waiting:
             break
-        time.sleep(1)
+        time.sleep(sleep_time)
+        if sleep_time < 60:
+            sleep_time += 1
 
     #move the output data into the datastore
-    for i in job_ids:
+    for task_name, i in task_job_ids.items():
         job = service.get_job(i)
         if job.error is None:
             for a in job.get_outputs():
-                service.store_data(a, obj)
-                service.store_meta(a, doc)
+                meta = service.get_meta(a)
+                if 'tags' in task_request[task_name]:
+                    meta["tags"] = task_request[task_name]["tags"]
+                print "meta!!!", json.dumps(meta, indent=4)
+                doc.put(meta['uuid'], meta)
+                if meta.get('visible', True):
+                    service.store_data(a, obj)
+                else:
+                    print "Skipping Download", a
 
     print "Done"
     if not args['hold']:

@@ -1,69 +1,181 @@
 {
-    "a_galaxy_workflow": "true",
-    "annotation": "",
-    "format-version": "0.1",
-    "name": "SimpleWorkflow",
+    "a_galaxy_workflow": "true", 
+    "annotation": "", 
+    "format-version": "0.1", 
+    "name": "WorkflowTest", 
     "steps": {
         "0": {
-            "annotation": "",
-            "id": 0,
-            "input_connections": {},
+            "annotation": "", 
+            "id": 0, 
+            "input_connections": {}, 
             "inputs": [
                 {
-                    "description": "",
-                    "name": "input_file"
+                    "description": "", 
+                    "name": "input_file_1"
                 }
-            ],
-            "name": "Input dataset",
-            "outputs": [],
+            ], 
+            "label": "input_file_1", 
+            "name": "Input dataset", 
+            "outputs": [], 
             "position": {
-                "left": 166,
-                "top": 194
-            },
-            "tool_errors": null,
-            "tool_id": null,
-            "tool_state": "{\"name\": \"input_file\"}",
-            "tool_version": null,
-            "type": "data_input",
-            "user_outputs": []
-        },
+                "left": 197, 
+                "top": 199
+            }, 
+            "tool_errors": null, 
+            "tool_id": null, 
+            "tool_state": "{\"name\": \"input_file_1\"}", 
+            "tool_version": null, 
+            "type": "data_input", 
+            "user_outputs": [], 
+            "uuid": "114e8769-4229-4406-80e9-278fa19d66a0"
+        }, 
         "1": {
-            "annotation": "",
-            "id": 1,
+            "annotation": "", 
+            "id": 1, 
+            "input_connections": {}, 
+            "inputs": [
+                {
+                    "description": "", 
+                    "name": "input_file_2"
+                }
+            ], 
+            "label": "input_file_2", 
+            "name": "Input dataset", 
+            "outputs": [], 
+            "position": {
+                "left": 192, 
+                "top": 406
+            }, 
+            "tool_errors": null, 
+            "tool_id": null, 
+            "tool_state": "{\"name\": \"input_file_2\"}", 
+            "tool_version": null, 
+            "type": "data_input", 
+            "user_outputs": [], 
+            "uuid": "73c793a2-01e9-4dc1-ae65-67e4d1a363e4"
+        }, 
+        "2": {
+            "annotation": "", 
+            "id": 2, 
             "input_connections": {
-                "input1": {
-                    "id": 0,
+                "input": {
+                    "id": 0, 
                     "output_name": "output"
                 }
-            },
-            "inputs": [],
-            "name": "Secure Hash / Message Digest",
+            }, 
+            "inputs": [], 
+            "label": null, 
+            "name": "Select first", 
             "outputs": [
                 {
-                    "name": "out_file1",
-                    "type": "tabular"
+                    "name": "out_file1", 
+                    "type": "input"
                 }
-            ],
+            ], 
             "position": {
-                "left": 480,
-                "top": 208
-            },
+                "left": 435, 
+                "top": 200
+            }, 
+            "post_job_actions": {
+                "HideDatasetActionout_file1": {
+                    "action_arguments": {}, 
+                    "action_type": "HideDatasetAction", 
+                    "output_name": "out_file1"
+                }
+            }, 
+            "tool_errors": null, 
+            "tool_id": "Show beginning1", 
+            "tool_state": "{\"__page__\": 0, \"input\": \"null\", \"__rerun_remap_job_id__\": null, \"lineNum\": \"\\\"1\\\"\"}", 
+            "tool_version": "1.0.0", 
+            "type": "tool", 
+            "user_outputs": [], 
+            "uuid": "96e1c252-ac47-4d28-993d-6b4d1e8c922a"
+        }, 
+        "3": {
+            "annotation": "tail_select", 
+            "id": 3, 
+            "input_connections": {
+                "input": {
+                    "id": 1, 
+                    "output_name": "output"
+                }
+            }, 
+            "inputs": [
+                {
+                    "description": "runtime parameter for tool Select last", 
+                    "name": "lineNum"
+                }
+            ], 
+            "label": null, 
+            "name": "Select last", 
+            "outputs": [
+                {
+                    "name": "out_file1", 
+                    "type": "input"
+                }
+            ], 
+            "position": {
+                "left": 440, 
+                "top": 410
+            }, 
+            "post_job_actions": {
+                "HideDatasetActionout_file1": {
+                    "action_arguments": {}, 
+                    "action_type": "HideDatasetAction", 
+                    "output_name": "out_file1"
+                }
+            }, 
+            "tool_errors": null, 
+            "tool_id": "Show tail1", 
+            "tool_state": "{\"__page__\": 0, \"input\": \"null\", \"__rerun_remap_job_id__\": null, \"lineNum\": \"{\\\"__class__\\\": \\\"RuntimeValue\\\"}\"}", 
+            "tool_version": "1.0.0", 
+            "type": "tool", 
+            "user_outputs": [], 
+            "uuid": "5d7f9a1e-bc12-43b8-80f0-829aa18a2e66"
+        }, 
+        "4": {
+            "annotation": "", 
+            "id": 4, 
+            "input_connections": {
+                "input1": {
+                    "id": 2, 
+                    "output_name": "out_file1"
+                }, 
+                "queries_0|input2": {
+                    "id": 3, 
+                    "output_name": "out_file1"
+                }
+            }, 
+            "inputs": [], 
+            "label": null, 
+            "name": "Concatenate datasets", 
+            "outputs": [
+                {
+                    "name": "out_file1", 
+                    "type": "input"
+                }
+            ], 
+            "position": {
+                "left": 662.5, 
+                "top": 236.5
+            }, 
             "post_job_actions": {
                 "RenameDatasetActionout_file1": {
                     "action_arguments": {
-                        "newname": "hashed_output"
-                    },
-                    "action_type": "RenameDatasetAction",
+                        "newname": "concat_output"
+                    }, 
+                    "action_type": "RenameDatasetAction", 
                     "output_name": "out_file1"
                 }
-            },
-            "tool_errors": null,
-            "tool_id": "secure_hash_message_digest",
-            "tool_state": "{\"__page__\": 0, \"__rerun_remap_job_id__\": null, \"input1\": \"null\", \"algorithms\": \"\\\"sha1\\\"\"}",
-            "tool_version": "0.0.1",
-            "type": "tool",
-            "user_outputs": []
+            }, 
+            "tool_errors": null, 
+            "tool_id": "cat1", 
+            "tool_state": "{\"__page__\": 0, \"__rerun_remap_job_id__\": null, \"input1\": \"null\", \"queries\": \"[{\\\"input2\\\": null, \\\"__index__\\\": 0}]\"}", 
+            "tool_version": "1.0.0", 
+            "type": "tool", 
+            "user_outputs": [], 
+            "uuid": "656b8994-46e6-482f-b842-379427693985"
         }
-    },
-    "uuid": "c72ac9cb-0f91-4c62-b5de-223c0a485551"
+    }, 
+    "uuid": "e9948637-99ae-4507-b447-00fa4cde344f"
 }

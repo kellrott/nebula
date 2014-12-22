@@ -392,9 +392,8 @@ class RemoteGalaxy(object):
         self.api_key = api_key
         self.path_mapping = path_mapping
 
-    def get(self, path):
+    def get(self, path, params = {}):
         c_url = self.url + path
-        params = {}
         params['key'] = self.api_key
         req = requests.get(c_url, params=params)
         return req.json()
@@ -461,7 +460,7 @@ class RemoteGalaxy(object):
         return self.get("/api/histories/%s/contents/%s" % (history, hda))
 
     def get_provenance(self, history, hda):
-        return self.get("/api/histories/%s/contents/%s/provenance" % (history, hda))
+        return self.get("/api/histories/%s/contents/%s/provenance" % (history, hda)) #, {"follow" : True})
 
     def add_workflow(self, wf):
         self.post("/api/workflows/upload", { 'workflow' : wf } )

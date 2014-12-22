@@ -206,12 +206,18 @@ class GalaxyService(Service):
         path = object_store.get_filename(hda)
         self.rg.download(meta['download_url'], path)
         object_store.update_from_file(hda)
-
+    
     def store_meta(self, data, doc_store):
         meta = self.rg.get_hda(data['history'], data['id'])
         prov = self.rg.get_provenance(data['history'], data['id'])
         meta['provenance'] = prov
         doc_store.put(meta['uuid'], meta)
+
+    def get_meta(self, data):
+        meta = self.rg.get_hda(data['history'], data['id'])
+        prov = self.rg.get_provenance(data['history'], data['id'])
+        meta['provenance'] = prov
+        return meta
 
 
 service_map = {

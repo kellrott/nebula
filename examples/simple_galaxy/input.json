@@ -9,5 +9,8 @@
         "tail_select" : {
             "lineNum" : 3
         }
-    }
+    },
+    "tags" : [
+        "sample:test_1"
+    ]
 }
