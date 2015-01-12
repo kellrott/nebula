@@ -111,7 +111,7 @@ class TaskJob:
 
     def get_inputs(self):
         return self.task_data['inputs']
-    
+
     def get_parameters(self):
         return self.task_data['parameters']
 
@@ -147,7 +147,9 @@ class GalaxyService(Service):
                     for k, v in job.get_inputs().items():
                         file_path = self.objectstore.get_filename(Target(v['uuid']))
                         logging.info("Loading FilePath: %s" % (file_path))
-                        nli = self.rg.library_paste_file(library_id, folder_id, v['uuid'], file_path, uuid=v['uuid'])
+
+                        nli = self.rg.library_paste_file(library_id=library_id, library_folder_id=folder_id,
+                            name=v['uuid'], datapath=file_path, uuid=v['uuid'])
                         if 'id' not in nli:
                             raise Exception("Failed to load data: %s" % (str(nli)))
                         wids.append(nli['id'])
@@ -206,7 +208,7 @@ class GalaxyService(Service):
         path = object_store.get_filename(hda)
         self.rg.download(meta['download_url'], path)
         object_store.update_from_file(hda)
-    
+
     def store_meta(self, data, doc_store):
         meta = self.rg.get_hda(data['history'], data['id'])
         prov = self.rg.get_provenance(data['history'], data['id'])

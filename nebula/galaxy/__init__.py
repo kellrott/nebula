@@ -153,6 +153,25 @@ class Workflow(object):
                         if step.annotation == k:
                             found = True
                             parameters[label] = v
+
+        #TAGS
+        for tag in input.get("tags", []):
+            for step, step_info in self.desc['steps'].items():
+                if step_info['type'] == "tool":
+                    pja_map = []
+                    for i, output in enumerate(step_info['outputs']):
+                        output_name = output['name']
+                        pja = {
+                            "RenameDatasetActionout_file%s" % (i) : {
+                                "action_type" : "TagDatasetAction",
+                                "output_name" : output_name,
+                                "action_arguments" : {
+                                    "tags" : tag
+                                },
+                            }
+                        }
+                        pja_map.append(pja)
+                    parameters[step]["parameters"]["__POST_JOB_ACTIONS__"] = pja_map
         out['ds_map'] = dsmap
         out['parameters'] = parameters
         return out

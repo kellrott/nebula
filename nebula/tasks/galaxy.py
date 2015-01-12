@@ -45,6 +45,7 @@ class GalaxyWorkflow(TaskNode):
         wf = Workflow(self.data)
         wf_req = wf.adjust_input({'ds_map' : inputs, 'parameters' : parameters}, label_translate=False, ds_translate=False)
         self.parameters = wf_req['parameters']
+        print "PARAMS!!!", self.parameters
         super(GalaxyWorkflow,self).__init__(task_id, inputs=inputs, **kwds)
 
         for step in self.data['steps'].values():

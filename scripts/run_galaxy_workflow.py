@@ -57,11 +57,13 @@ def run_workflow(args):
     #this side happens on the master node
     tasks = {}
     task_request = {}
+    input_uuids = {}
     for i, input_file in enumerate(args['inputs']):
         with open(input_file) as handle:
             meta = json.loads(handle.read())
         inputs = {}
         for k, v in meta.get('ds_map').items():
+            input_uuids[v['uuid']] = True
             t = Target(v['uuid'])
             if not obj.exists(t):
                 if t.uuid not in data_map:
@@ -116,10 +118,12 @@ def run_workflow(args):
                 meta = service.get_meta(a)
                 if 'tags' in task_request[task_name]:
                     meta["tags"] = task_request[task_name]["tags"]
-                print "meta!!!", json.dumps(meta, indent=4)
+                #print "meta!!!", json.dumps(meta, indent=4)
                 doc.put(meta['uuid'], meta)
                 if meta.get('visible', True):
-                    service.store_data(a, obj)
+                    if meta['uuid'] not in input_uuids:
+                        service.store_data(a, obj)
+                    print "Skipping input file", a
                 else:
                     print "Skipping Download", a
 
