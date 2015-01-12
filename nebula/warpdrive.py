@@ -14,6 +14,11 @@ import string
 import json
 import shutil
 
+try:
+    import yaml
+except ImportError:
+    yaml = None
+
 from xml.dom.minidom import parse as parseXML
 from glob import glob
 
@@ -416,18 +421,26 @@ class RemoteGalaxy(object):
         req = requests.post(c_url, data=json.dumps(payload), params=params, headers = {'Content-Type': 'application/json'} )
         return req.text
 
-    def download(self, path, dst):
+    def download_handle(self, path):
         url = self.url + path
         logging.info("Downloading: %s" % (url))
         params = {}
         params['key'] = self.api_key
         r = requests.get(url, params=params, stream=True)
-        with open(dst, "wb") as handle:
+        return r
+
+    def download(self, path, dst):
+        r = self.download_handle(path)
+        if hasattr(dst, 'write'):
             for chunk in r.iter_content(chunk_size=1024):
                 if chunk:
-                    handle.write(chunk)
-                    handle.flush()
-
+                    dst.write(chunk)
+        else:
+            with open(dst, "wb") as handle:
+                for chunk in r.iter_content(chunk_size=1024):
+                    if chunk:
+                        handle.write(chunk)
+                        handle.flush()
 
     def create_library(self, name):
         lib_create_data = {'name' : name}
@@ -458,6 +471,16 @@ class RemoteGalaxy(object):
 
     def get_hda(self, history, hda):
         return self.get("/api/histories/%s/contents/%s" % (history, hda))
+
+    def download_hda(self, history, hda, dst):
+        meta = self.get_hda(history, hda)
+        self.download(meta['download_url'], dst)
+
+    def history_list(self):
+        return self.get("/api/histories")
+
+    def get_history(self, history):
+        return self.get("/api/histories/%s" % (history))
 
     def get_provenance(self, history, hda):
         return self.get("/api/histories/%s/contents/%s/provenance" % (history, hda)) #, {"follow" : True})
@@ -755,6 +778,8 @@ if __name__ == "__main__":
     parser_up.add_argument("--host", default=None)
     parser_up.add_argument("--sudo", action="store_true", default=False)
     parser_up.add_argument("--smp", action="append", nargs=2, default=[])
+    parser_up.add_argument("--config", default=None)
+
     parser_up.set_defaults(func=run_up)
 
     parser_down = subparsers.add_parser('down')
@@ -800,6 +825,17 @@ if __name__ == "__main__":
     del kwds['v']
     del kwds['vv']
     del kwds['func']
+
+    if 'config' in kwds:
+        if kwds['config'] is not None:
+            if yaml is None:
+                raise Exception("Can't find YAML parsing library")
+            with open(kwds['config'] ) as handle:
+                txt = handle.read()
+            nargs = yaml.load(txt)
+            for k,v in nargs.items():
+                kwds[k] = v
+        del kwds['config']
 
     try:
         func(**kwds)
