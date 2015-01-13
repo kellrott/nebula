@@ -41,12 +41,6 @@ def run_workflow(args):
             except:
                 pass
 
-    o_url = urlparse(args['object_store'])
-    if o_url.scheme == '':
-        obj = DiskObjectStore(DiskObjectStoreConfig(job_work=args['local_store'], new_file_path=args['local_store']), file_path=o_url.path)
-    else:
-        raise Exception("Object Store type not supported: %s" % (o_url.scheme))
-
     d_url = urlparse(args['doc_store'])
     if d_url.scheme == '':
         doc = FileDocStore(file_path=d_url.path)
@@ -65,27 +59,27 @@ def run_workflow(args):
         for k, v in meta.get('ds_map').items():
             input_uuids[v['uuid']] = True
             t = Target(v['uuid'])
-            if not obj.exists(t):
+            if not doc.exists(t):
                 if t.uuid not in data_map:
                     raise Exception("Can't find input data: %s" % (t.uuid))
-                obj.update_from_file(t, data_map[t.uuid], create=True)
+                doc.update_from_file(t, data_map[t.uuid], create=True)
                 doc.put(t.uuid, t.to_dict())
             inputs[k] = t
         params = meta.get("parameters", {})
         task_name = 'task_%s' % (i)
         if args['workflow'] is not None:
-            task = GalaxyWorkflow(task_name, args['workflow'], inputs=inputs, parameters=params, docker=args['galaxy'], tool_dir=args['tools'], tool_data=args['tool_data'])
+            task = GalaxyWorkflow(task_name, args['workflow'], inputs=inputs, parameters=params, tags=meta.get("tags", None), docker=args['galaxy'], tool_dir=args['tools'], tool_data=args['tool_data'])
         else:
             with open(args['yaml_workflow']) as handle:
                 yaml_text = handle.read()
-            task = GalaxyWorkflow(task_name, yaml=yaml_text, inputs=inputs, parameters=params, docker=args['galaxy'], tool_dir=args['tools'], tool_data=args['tool_data'])
+            task = GalaxyWorkflow(task_name, yaml=yaml_text, inputs=inputs, parameters=params, tags=meta.get("tags", None), docker=args['galaxy'], tool_dir=args['tools'], tool_data=args['tool_data'])
         task_request[task_name] = meta
         task_data = task.get_task_data()
         tasks[task_name] = task_data
 
     #this side happens on the worker node
-    service = ServiceFactory('galaxy', objectstore=obj,
-        lib_data=[args['object_store']], tool_dir=args['tools'], tool_data=args['tool_data'],
+    service = ServiceFactory('galaxy', objectstore=doc,
+        lib_data=[doc.file_path], tool_dir=args['tools'], tool_data=args['tool_data'],
         docker_tag=args['galaxy'], work_dir=args['warpdrive_dir'], sudo=args['sudo'], force=True,
         tool_docker=True, smp=args['smp'], cpus=args['cpus'])
     service.start()
@@ -116,13 +110,13 @@ def run_workflow(args):
         if job.error is None:
             for a in job.get_outputs():
                 meta = service.get_meta(a)
-                if 'tags' in task_request[task_name]:
-                    meta["tags"] = task_request[task_name]["tags"]
+                #if 'tags' in task_request[task_name]:
+                #    meta["tags"] = task_request[task_name]["tags"]
                 #print "meta!!!", json.dumps(meta, indent=4)
                 doc.put(meta['uuid'], meta)
                 if meta.get('visible', True):
                     if meta['uuid'] not in input_uuids:
-                        service.store_data(a, obj)
+                        service.store_data(a, doc)
                     print "Skipping input file", a
                 else:
                     print "Skipping Download", a
@@ -144,8 +138,7 @@ if __name__ == "__main__":
     parser.add_argument("-td", "--tool-data", help="Tool Directory", default=None)
     parser.add_argument("--smp", action="append", nargs=2, default=[])
     parser.add_argument("--cpus", type=int, default=None)
-    parser.add_argument("-s", "--object-store", default="./nebula_data")
-    parser.add_argument("-b", "--doc-store", default="./nebula_docs")
+    parser.add_argument("-b", "--doc-store", default="./nebula_data")
     parser.add_argument("-l", "--local-store", default="./nebula_work")
     parser.add_argument("--sudo", action="store_true", default=False)
     parser.add_argument("--hold", action="store_true", default=False)

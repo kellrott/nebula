@@ -15,7 +15,7 @@ class GalaxyTargetFuture(TargetFuture):
         super(GalaxyTargetFuture, self).__init__(task_id)
 
 class GalaxyWorkflow(TaskNode):
-    def __init__(self, task_id, workflow_file=None, yaml=None, inputs=None, parameters=None, tool_dir=None, tool_data=None, **kwds):
+    def __init__(self, task_id, workflow_file=None, yaml=None, inputs=None, parameters=None, tool_dir=None, tool_data=None, tags=None, **kwds):
         if 'docker' not in kwds:
             kwds['docker'] = "bgruening/galaxy-stable"
 
@@ -43,9 +43,13 @@ class GalaxyWorkflow(TaskNode):
 
         kwds['outputs'] = outputs
         wf = Workflow(self.data)
-        wf_req = wf.adjust_input({'ds_map' : inputs, 'parameters' : parameters}, label_translate=False, ds_translate=False)
+        wf_inputs = {'ds_map' : inputs, 'parameters' : parameters}
+        if tags is not None:
+            wf_inputs['tags'] = tags
+        #print "BEFORE!!!", wf_inputs
+        wf_req = wf.adjust_input(wf_inputs, label_translate=False, ds_translate=False)
         self.parameters = wf_req['parameters']
-        print "PARAMS!!!", self.parameters
+        #print "PARAMS!!!", json.dumps(self.parameters)
         super(GalaxyWorkflow,self).__init__(task_id, inputs=inputs, **kwds)
 
         for step in self.data['steps'].values():

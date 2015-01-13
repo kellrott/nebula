@@ -197,7 +197,7 @@ def directory_hash_id( id ):
         return [ padded[ i * 3 : (i + 1 ) * 3 ] for i in range( len( padded ) // 3 ) ]
     else:
         #assume it is a UUID
-        return [ s[0:2], s[2:4] ]
+        return [ s[0:2] ]
 
 def umask_fix_perms( path, umask, unmasked_perms, gid=None ):
     """
@@ -333,7 +333,8 @@ class DiskObjectStore(ObjectStore):
                     rel_path = os.path.join(rel_path, extra_dir)
             path = os.path.join(base, rel_path)
         if not dir_only:
-            path = os.path.join(path, alt_name if alt_name else "dataset_%s.dat" % obj.uuid)
+            #path = os.path.join(path, alt_name if alt_name else "dataset_%s.dat" % obj.uuid)
+            path = os.path.join(path, alt_name if alt_name else "%s.dat" % obj.uuid)
         return os.path.abspath(path)
 
     def exists(self, obj, **kwargs):

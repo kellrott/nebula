@@ -515,7 +515,8 @@ class RemoteGalaxy(object):
         data = {
             'workflow_id' : workflow_id,
             'ds_map' : dsmap,
-            'parameters' : parameters
+            'parameters' : parameters,
+            #'inputs_by' : 'step_index'
         }
         return self.post("/api/workflows", data )
 

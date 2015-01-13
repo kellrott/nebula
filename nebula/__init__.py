@@ -17,3 +17,4 @@ from website import WebSite
 from workinfo import WorkInfoManager
 from config import Config
 from dag import DagSet
+from warpdrive import RemoteGalaxy

@@ -130,7 +130,7 @@ class Workflow(object):
                 for step in self.steps():
                     label = k
                     if label_translate:
-                        label = step.step_id
+                        label = str(step.step_id)
                     #if they referred to a named input
                     if step.type == 'data_input':
                         if step.inputs[0]['name'] == k:
@@ -148,7 +148,7 @@ class Workflow(object):
                 for step in self.steps():
                     label = k
                     if label_translate:
-                        label = step.step_id
+                        label = str(step.step_id)
                     if step.type == 'tool':
                         if step.annotation == k:
                             found = True
@@ -157,21 +157,21 @@ class Workflow(object):
         #TAGS
         for tag in input.get("tags", []):
             for step, step_info in self.desc['steps'].items():
+                step_name = str(step)
                 if step_info['type'] == "tool":
-                    pja_map = []
+                    pja_map = {}
                     for i, output in enumerate(step_info['outputs']):
                         output_name = output['name']
-                        pja = {
-                            "RenameDatasetActionout_file%s" % (i) : {
-                                "action_type" : "TagDatasetAction",
-                                "output_name" : output_name,
-                                "action_arguments" : {
-                                    "tags" : tag
-                                },
-                            }
+                        pja_map["RenameDatasetActionout_file%s" % (i)] = {
+                            "action_type" : "TagDatasetAction",
+                            "output_name" : output_name,
+                            "action_arguments" : {
+                                "tags" : tag
+                            },
                         }
-                        pja_map.append(pja)
-                    parameters[step]["parameters"]["__POST_JOB_ACTIONS__"] = pja_map
+                    #if step_name not in parameters:
+                    #    parameters[step_name] = {} # json.loads(step_info['tool_state'])
+                    #parameters[step_name]["__POST_JOB_ACTIONS__"] = pja_map
         out['ds_map'] = dsmap
         out['parameters'] = parameters
         return out
