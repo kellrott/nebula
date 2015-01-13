@@ -491,35 +491,8 @@ class RemoteGalaxy(object):
     def get_workflow(self, wid):
         return self.get("/api/workflows/%s" % (wid))
 
-    def call_workflow(self, workflow_id, inputs, params):
-        wf_desc = self.get_workflow(workflow_id)
-        #print json.dumps(wf_desc, indent=4)
-        dsmap = {}
-        for step_id, step_desc in wf_desc['steps'].iteritems():
-            if step_desc['type'] == 'data_input':
-                if step_id in inputs:
-                    dsmap[step_id] = inputs[step_id]
-                elif str(step_id) in inputs:
-                    dsmap[step_id] = inputs[str(step_id)]
-                elif step_desc["tool_inputs"]["name"] in inputs:
-                    dsmap[step_id] = inputs[step_desc["tool_inputs"]["name"]]
-
-        parameters = {}
-        for step_id, step_desc in wf_desc['steps'].iteritems():
-            if step_desc['type'] == 'tool':
-                if step_id in params:
-                    parameters[step_id] = params[step_id]
-                elif step_desc['annotation'] in params:
-                    parameters[step_id] = params[step_desc['annotation']]
-
-        data = {
-            'workflow_id' : workflow_id,
-            'ds_map' : dsmap,
-            'parameters' : parameters,
-            #'inputs_by' : 'step_index'
-        }
-        return self.post("/api/workflows", data )
-
+    def call_workflow(self, request):
+        return self.post("/api/workflows", request )
 
     def library_paste_file(self, library_id, library_folder_id, name, datapath, uuid=None, metadata=None):
         datapath = os.path.abspath(datapath)

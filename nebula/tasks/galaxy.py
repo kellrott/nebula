@@ -43,12 +43,12 @@ class GalaxyWorkflow(TaskNode):
 
         kwds['outputs'] = outputs
         wf = Workflow(self.data)
-        wf_inputs = {'ds_map' : inputs, 'parameters' : parameters}
+        wf_inputs = {'inputs' : inputs, 'parameters' : parameters}
         if tags is not None:
             wf_inputs['tags'] = tags
         #print "BEFORE!!!", wf_inputs
-        wf_req = wf.adjust_input(wf_inputs, label_translate=False, ds_translate=False)
-        self.parameters = wf_req['parameters']
+        wf_req = wf.adjust_input(wf_inputs)
+        self.request = wf_req
         #print "PARAMS!!!", json.dumps(self.parameters)
         super(GalaxyWorkflow,self).__init__(task_id, inputs=inputs, **kwds)
 
@@ -68,8 +68,7 @@ class GalaxyWorkflow(TaskNode):
                 'tool_data' : self.tool_data
             },
             'workflow' : self.data,
-            'inputs' : self.get_input_data(),
-            'parameters' : self.parameters,
+            'request' : self.request,
             'outputs' : self.get_output_data(),
             'docker' : self.docker.name
         }

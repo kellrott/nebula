@@ -110,10 +110,13 @@ class TaskJob:
         self.error = msg
 
     def get_inputs(self):
-        return self.task_data['inputs']
+        out = {}
+        for name, value in self.task_data['request']['inputs'].items():
+            out[name] = HDATarget(value)
+        return out
 
     def get_parameters(self):
-        return self.task_data['parameters']
+        return self.task_data['request']['parameters']
 
     def get_outputs(self):
         return self.outputs
@@ -121,7 +124,7 @@ class TaskJob:
 class HDATarget(Target):
     def __init__(self, meta):
         self.meta = meta
-        self.uuid = meta['uuid']
+        self.uuid = meta['id']
 
 class GalaxyService(Service):
     def __init__(self, objectstore, **kwds):
@@ -145,11 +148,11 @@ class GalaxyService(Service):
                     job_id, job = req
                     wids = []
                     for k, v in job.get_inputs().items():
-                        file_path = self.objectstore.get_filename(Target(v['uuid']))
+                        file_path = self.objectstore.get_filename(Target(v.uuid))
                         logging.info("Loading FilePath: %s" % (file_path))
 
                         nli = self.rg.library_paste_file(library_id=library_id, library_folder_id=folder_id,
-                            name=v['uuid'], datapath=file_path, uuid=v['uuid'])
+                            name=v.uuid, datapath=file_path, uuid=v.uuid)
                         if 'id' not in nli:
                             raise Exception("Failed to load data: %s" % (str(nli)))
                         wids.append(nli['id'])
@@ -172,9 +175,9 @@ class GalaxyService(Service):
                     for k, v in job.get_inputs().items():
                         inputs[k] = {
                             'src' : "uuid",
-                            'id' : v['uuid']
+                            'id' : v.uuid
                         }
-                    invc = self.rg.call_workflow(job.task_data['workflow']['uuid'], inputs=inputs, params=job.get_parameters())
+                    invc = self.rg.call_workflow(request=job.task_data['request'])
                     if 'err_msg' in invc:
                         logging.error("Workflow invocation failed")
                         job.set_error("Workflow Invocation Failed")

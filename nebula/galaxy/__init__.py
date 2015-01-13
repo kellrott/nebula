@@ -40,6 +40,7 @@ def dom_scan_iter(node, stack, prefix):
 class WorkflowStep(object):
     def __init__(self, workflow, desc):
         self.step_id = desc["id"]
+        self.uuid = desc['uuid']
         self.workflow = workflow
         self.desc = desc
         self.type = self.desc['type']
@@ -118,27 +119,21 @@ class Workflow(object):
                     raise ValidationError("Missing Data Input: %s" % (step.inputs[0]['name']))
         return True
 
-    def adjust_input(self, input, label_translate=True, ds_translate=True):
+    def adjust_input(self, input):
         dsmap = {}
         parameters = {}
         out = {}
-        for k, v in input.get("ds_map", {}).items():
+        for k, v in input.get("inputs", input.get("ds_map", {})).items():
             if k in self.desc['steps']:
                 out[k] == v
             else:
                 found = False
                 for step in self.steps():
-                    label = k
-                    if label_translate:
-                        label = str(step.step_id)
-                    #if they referred to a named input
+                    label = step.uuid
                     if step.type == 'data_input':
                         if step.inputs[0]['name'] == k:
                             found = True
-                            if ds_translate:
-                                dsmap[label] = {'src':'uuid', 'id' : v.uuid}
-                            else:
-                                dsmap[label] = v
+                            dsmap[label] = {'src':'uuid', 'id' : v.uuid}
 
         for k, v in input.get("parameters", {}).items():
             if k in self.desc['steps']:
@@ -146,9 +141,7 @@ class Workflow(object):
             else:
                 found = False
                 for step in self.steps():
-                    label = k
-                    if label_translate:
-                        label = str(step.step_id)
+                    label = step.uuid
                     if step.type == 'tool':
                         if step.annotation == k:
                             found = True
@@ -157,7 +150,7 @@ class Workflow(object):
         #TAGS
         for tag in input.get("tags", []):
             for step, step_info in self.desc['steps'].items():
-                step_name = str(step)
+                step_name = step_info['uuid']
                 if step_info['type'] == "tool":
                     pja_map = {}
                     for i, output in enumerate(step_info['outputs']):
@@ -169,11 +162,13 @@ class Workflow(object):
                                 "tags" : tag
                             },
                         }
-                    #if step_name not in parameters:
-                    #    parameters[step_name] = {} # json.loads(step_info['tool_state'])
-                    #parameters[step_name]["__POST_JOB_ACTIONS__"] = pja_map
-        out['ds_map'] = dsmap
+                    if step_name not in parameters:
+                        parameters[step_name] = {} # json.loads(step_info['tool_state'])
+                    parameters[step_name]["__POST_JOB_ACTIONS__"] = pja_map
+        out['workflow_id'] = self.desc['uuid']
+        out['inputs'] = dsmap
         out['parameters'] = parameters
+        out['inputs_by'] = "step_uuid"
         return out
 
 class ToolBox(object):
