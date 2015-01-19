@@ -431,16 +431,20 @@ class RemoteGalaxy(object):
 
     def download(self, path, dst):
         r = self.download_handle(path)
+        dsize = 0L
         if hasattr(dst, 'write'):
             for chunk in r.iter_content(chunk_size=1024):
                 if chunk:
                     dst.write(chunk)
+                    dsize += len(chunk)
         else:
             with open(dst, "wb") as handle:
                 for chunk in r.iter_content(chunk_size=1024):
                     if chunk:
                         handle.write(chunk)
                         handle.flush()
+                        dsize += len(chunk)
+        logging.info("Downloaded: %s bytes" % (dsize))
 
     def create_library(self, name):
         lib_create_data = {'name' : name}

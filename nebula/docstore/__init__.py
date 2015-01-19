@@ -10,7 +10,7 @@ def init_docstore_url(url):
     p = urlparse(url)
     if p.scheme == '':
         return FileDocStore(file_path=url)
-    
+
     raise Exception("Unknown ObjectStore %s" % (url))
 
 
@@ -40,7 +40,7 @@ class DocStore(ObjectStore):
 
     def cleanid(self, id):
         return str(uuid.UUID(id))
-    
+
     def filter(self, *kwds):
         raise NotImplementedError()
 
@@ -112,10 +112,10 @@ class FileDocStore(DocStore):
         path = os.path.join(self.file_path, id[:2], id + FILE_SUFFIX)
         with open(path, "w") as handle:
             handle.write(self.dumpdoc(doc))
-        
+
     def _doclist(self):
-        return glob(os.path.join(self.file_path, "*", FILE_SUFFIX))
-        
+        return glob(os.path.join(self.file_path, "*", "*" + FILE_SUFFIX))
+
     def filter(self, **kwds):
         for a in self._doclist():
             with open(a) as handle:
@@ -126,4 +126,3 @@ class FileDocStore(DocStore):
                         match = False
                 if match:
                     yield meta
-                    

@@ -87,7 +87,6 @@ def run_workflow(args):
     for task_name, task_data in tasks.items():
         task = TaskJob(task_data)
         i = service.submit(task)
-        print "job_id", i
         task_job_ids[task_name] = i
 
     sleep_time = 1
@@ -95,7 +94,7 @@ def run_workflow(args):
         waiting = False
         for i in task_job_ids.values():
             status = service.status(i)
-            print "Status", status, i
+            logging.info("Status check %s %s" % (status, i))
             if status not in ['ok', 'error']:
                 waiting = True
         if not waiting:
@@ -115,13 +114,18 @@ def run_workflow(args):
                 #print "meta!!!", json.dumps(meta, indent=4)
                 doc.put(meta['uuid'], meta)
                 if meta.get('visible', True):
-                    if meta['uuid'] not in input_uuids:
-                        service.store_data(a, doc)
-                    print "Skipping input file", a
+                    if meta['state'] == "ok":
+                        if meta['uuid'] not in input_uuids:
+                            logging.info("Downloading: %s" % (meta['uuid']))
+                            service.store_data(a, doc)
+                        else:
+                            logging.info("Skipping input file %s" % (a))
+                    else:
+                        logging.info("Skipping non-ok file: %s" % (meta['state']))
                 else:
-                    print "Skipping Download", a
+                    logging.info("Skipping Download %s (not visible)" % (a))
 
-    print "Done"
+    logging.info("Done")
     if not args['hold']:
         service.stop()
 

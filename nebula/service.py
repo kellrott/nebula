@@ -206,6 +206,7 @@ class GalaxyService(Service):
 
     def store_data(self, data, object_store):
         meta = self.rg.get_hda(data['history'], data['id'])
+        meta['id'] = meta['uuid'] #use the glocal id
         hda = HDATarget(meta)
         object_store.create(hda)
         path = object_store.get_filename(hda)
