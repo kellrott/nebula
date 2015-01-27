@@ -122,7 +122,7 @@ class FileDocStore(DocStore):
                 meta = json.loads(handle.read())
                 match = True
                 for k,v in kwds.items():
-                    if meta[k] != v:
+                    if k not in meta or meta[k] != v:
                         match = False
                 if match:
                     yield meta
