@@ -498,6 +498,9 @@ class RemoteGalaxy(object):
     def call_workflow(self, request):
         return self.post("/api/workflows", request )
 
+    def get_job(self, jid):
+        return self.get("/api/jobs/%s" % (jid), {'full' : True} )
+
     def library_paste_file(self, library_id, library_folder_id, name, datapath, uuid=None, metadata=None):
         datapath = os.path.abspath(datapath)
         found = False

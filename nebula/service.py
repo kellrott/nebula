@@ -217,12 +217,14 @@ class GalaxyService(Service):
         meta = self.rg.get_hda(data['history'], data['id'])
         prov = self.rg.get_provenance(data['history'], data['id'])
         meta['provenance'] = prov
+        meta['job'] = self.rg.get_job(prov['job_id'])
         doc_store.put(meta['uuid'], meta)
 
     def get_meta(self, data):
         meta = self.rg.get_hda(data['history'], data['id'])
         prov = self.rg.get_provenance(data['history'], data['id'])
         meta['provenance'] = prov
+        meta['job'] = self.rg.get_job(prov['job_id'])
         return meta
 
 

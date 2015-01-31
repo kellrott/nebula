@@ -81,6 +81,12 @@ class DocStore(ObjectStore):
     def get_store_usage_percent(self):
         return self.objs.get_store_usage_percent()
 
+class TargetDict(dict):
+    def __init__(self, src):
+        dict.__init__(self, src)
+        self.uuid = src['uuid']
+        self.id = src.get('id', None)
+
 FILE_SUFFIX=".dat.json"
 
 class FileDocStore(DocStore):
@@ -102,7 +108,7 @@ class FileDocStore(DocStore):
             return None
         with open(path) as handle:
             data = handle.read()
-        return self.loaddoc(data)
+        return TargetDict(self.loaddoc(data))
 
     def put(self, id, doc):
         id = self.cleanid(id)
@@ -118,6 +124,7 @@ class FileDocStore(DocStore):
 
     def filter(self, **kwds):
         for a in self._doclist():
+            doc_id = os.path.basename(a).replace(FILE_SUFFIX, "")
             with open(a) as handle:
                 meta = json.loads(handle.read())
                 match = True
@@ -125,4 +132,4 @@ class FileDocStore(DocStore):
                     if k not in meta or meta[k] != v:
                         match = False
                 if match:
-                    yield meta
+                    yield doc_id, TargetDict(meta)
