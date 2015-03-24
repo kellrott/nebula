@@ -15,9 +15,11 @@ class GalaxyTargetFuture(TargetFuture):
         super(GalaxyTargetFuture, self).__init__(task_id)
 
 class GalaxyWorkflow(TaskNode):
-    def __init__(self, task_id, workflow_file=None, yaml=None, inputs=None, parameters=None, tool_dir=None, tool_data=None, tags=None, **kwds):
-        if 'docker' not in kwds:
+    def __init__(self, task_id, workflow_file=None, yaml=None, inputs=None, parameters=None, tool_dir=None, tool_data=None, tags=None, galaxy=None, **kwds):
+        if galaxy is None:
             kwds['docker'] = "bgruening/galaxy-stable"
+        else:
+            kwds['docker'] = galaxy
 
         self.tool_dir = tool_dir
         self.tool_data = tool_data

@@ -24,6 +24,6 @@ class Config:
         self.max_servers = max_servers
         self.object_store = object_store
         self.doc_store = doc_store
-    
+
     def get_workinfo_manager(self):
         return WorkInfoManager(object_store=self.object_store, doc_store=self.doc_store)

@@ -22,6 +22,10 @@ except ImportError:
 from xml.dom.minidom import parse as parseXML
 from glob import glob
 
+DEFAULT_CONFIG=os.path.join(os.environ["HOME"], ".warpdrive")
+if not os.path.exists(DEFAULT_CONFIG):
+    os.mkdir(DEFAULT_CONFIG)
+
 class RequestException(Exception):
     def __init__(self, message):
         self.message = message
@@ -39,7 +43,7 @@ def get_docker_path():
     return docker_path
 
 def call_docker_run(
-    docker_tag, ports={},
+    galaxy, ports={},
     args=[], host=None, sudo=False,
     env={},
     set_user=False,
@@ -66,7 +70,7 @@ def call_docker_run(
     if privledged:
         cmd.append("--privileged")
     cmd.append("-d")
-    cmd.extend( [docker_tag] )
+    cmd.extend( [galaxy] )
     cmd.extend(args)
 
     sys_env = dict(os.environ)
@@ -224,13 +228,16 @@ def call_docker_save(
 
 
 
-def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=None,
+def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None,
     sudo=False, lib_data=[], auto_add=False, tool_data=None, file_store=None, metadata_suffix=None,
-    tool_dir=None, work_dir="/tmp", tool_docker=False, force=False, tool_images=None, smp=[], cpus=None,
+    tool_dir=None, config_dir=DEFAULT_CONFIG, tool_docker=False, force=False, tool_images=None, smp=[], cpus=None,
     key="HSNiugRFvgT574F43jZ7N9F3"):
 
+    if config_dir is None:
+        config_dir = DEFAULT_CONFIG
+
     if force and run_status(name=name,host=host, sudo=sudo):
-        run_down(name=name, host=host, rm=True, work_dir=work_dir, sudo=sudo)
+        run_down(name=name, host=host, rm=True, config_dir=config_dir, sudo=sudo)
 
     env = {
         "GALAXY_CONFIG_CHECK_MIGRATE_TOOLS" : "False",
@@ -244,7 +251,7 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
         mounts[os.path.abspath(tool_data)] = "/tool_data"
         env['GALAXY_CONFIG_TOOL_DATA_PATH'] = "/tool_data"
 
-    config_dir = os.path.abspath(os.path.join(work_dir, "warpdrive_%s" % (name)))
+    config_dir = os.path.abspath(os.path.join(config_dir, "warpdrive_%s" % (name)))
     if not os.path.exists(config_dir):
         os.mkdir(config_dir)
 
@@ -284,12 +291,14 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
                                 logging.debug("Found metadata for %s " % (file))
                         except:
                             pass
+    """
     if file_store:
         file_store = os.path.abspath(file_store)
         dpath = "/parent/files"
-        env['GALAXY_CONFIG_FILE_PATH'] = dpath
+        #env['GALAXY_CONFIG_FILE_PATH'] = dpath
         lib_mapping[file_store] = dpath
         mounts[file_store] = dpath
+    """
 
     if tool_docker:
         common_volumes = ",".join( "%s:%s:ro" % (k,v) for k,v in lib_mapping.items() )
@@ -299,7 +308,7 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
         for count in set( a[1] for a in smp ):
             smp_destinations.append( string.Template(SMP_DEST_CONF).substitute(
                 DEST_NAME="docker_cluster_smp%s" % (count),
-                TAG=docker_tag,
+                TAG=galaxy,
                 NAME=name,
                 NCPUS=count,
                 COMMON_VOLUMES=common_volumes)
@@ -315,7 +324,7 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
 
         mounts[config_dir] = "/config"
         job_conf = string.Template(JOB_CHILD_CONF).substitute(
-            TAG=docker_tag,
+            TAG=galaxy,
             NAME=name,
             COMMON_VOLUMES=common_volumes,
             SMP_DESTINATIONS="\n".join(smp_destinations),
@@ -333,7 +342,7 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
         env['SLURM_CPUS'] = cpus
 
     call_docker_run(
-        docker_tag,
+        galaxy,
         ports={str(port) : "80"},
         host=host,
         sudo=sudo,
@@ -376,7 +385,7 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
 
     with open(os.path.join(config_dir, "config.json"), "w") as handle:
         handle.write(json.dumps({
-            'docker_tag' : docker_tag,
+            'galaxy' : galaxy,
             'port' : port,
             'lib_data' : list(os.path.abspath(a) for a in lib_data),
             'host' : host,
@@ -486,8 +495,11 @@ class RemoteGalaxy(object):
     def get_history(self, history):
         return self.get("/api/histories/%s" % (history))
 
-    def get_provenance(self, history, hda):
-        return self.get("/api/histories/%s/contents/%s/provenance" % (history, hda)) #, {"follow" : True})
+    def get_provenance(self, history, hda, follow=False):
+        if follow:
+            return self.get("/api/histories/%s/contents/%s/provenance" % (history, hda), {"follow" : True})
+        else:
+            return self.get("/api/histories/%s/contents/%s/provenance" % (history, hda))
 
     def add_workflow(self, wf):
         self.post("/api/workflows/upload", { 'workflow' : wf } )
@@ -530,8 +542,10 @@ class RemoteGalaxy(object):
 
 
 
-def run_down(name="galaxy", host=None, rm=False, work_dir="/tmp", sudo=False):
-    config_dir = os.path.join(work_dir, "warpdrive_%s" % (name))
+def run_down(name="galaxy", host=None, rm=False, config_dir=DEFAULT_CONFIG, sudo=False):
+    if config_dir is None:
+        config_dir = DEFAULT_CONFIG
+    config_dir = os.path.join(config_dir, "warpdrive_%s" % (name))
     try:
         call_docker_kill(
             name, host=host, sudo=sudo
@@ -577,8 +591,10 @@ def run_status(name="galaxy", host=None, sudo=False):
     return found
 
 
-def run_add(name="galaxy", work_dir="/tmp", files=[]):
-    config_dir = os.path.join(work_dir, "warpdrive_%s" % (name))
+def run_add(name="galaxy", config_dir=DEFAULT_CONFIG, files=[]):
+    if config_dir is None:
+        config_dir = DEFAULT_CONFIG
+    config_dir = os.path.join(config_dir, "warpdrive_%s" % (name))
     if not os.path.exists(config_dir):
         print "Config not found"
         return
@@ -742,24 +758,27 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers(title="subcommand")
 
     parser_up = subparsers.add_parser('up')
-    parser_up.add_argument("-t", "--tag", dest="docker_tag", default="bgruening/galaxy-stable:dev")
-    parser_up.add_argument("-x", "--tool-dir", default=None)
+    parser_up.add_argument("-g", "--galaxy", dest="galaxy", default="bgruening/galaxy-stable:dev")
+    parser_up.add_argument("-t", "--tool-dir", default=None)
     parser_up.add_argument("-ti", "--tool-images", default=None)
+    parser_up.add_argument("-td", "--tool-data", default=None)
+    parser_up.add_argument("-l", "--lib-data", action="append", default=[])
+    parser_up.add_argument("-c", "--config", default=None)
+    parser_up.add_argument("--config-dir", default=DEFAULT_CONFIG)
+    parser_up.add_argument("--smp", action="append", nargs=2, default=[])
+    parser_up.add_argument("--cpus", type=int, default=None)
+    parser_up.add_argument("-d", "--docker", dest="tool_docker", action="store_true", help="Launch jobs in child containers", default=False)
+
+    #parser_up.add_argument("-s", "--file-store", default=None)
+
     parser_up.add_argument("-f", "--force", action="store_true", default=False)
-    parser_up.add_argument("-d", "--tool-data", default=None)
-    parser_up.add_argument("-s", "--file-store", default=None)
-    parser_up.add_argument("-w", "--work-dir", default="/tmp")
     parser_up.add_argument("-p", "--port", default="8080")
     parser_up.add_argument("-m", "--metadata", dest="metadata_suffix", default=None)
     parser_up.add_argument("-n", "--name", default="galaxy")
-    parser_up.add_argument("-l", "--lib-data", action="append", default=[])
     parser_up.add_argument("-a", "--auto-add", action="store_true", default=False)
-    parser_up.add_argument("-c", "--child", dest="tool_docker", action="store_true", help="Launch jobs in child containers", default=False)
     parser_up.add_argument("--key", default="HSNiugRFvgT574F43jZ7N9F3")
     parser_up.add_argument("--host", default=None)
     parser_up.add_argument("--sudo", action="store_true", default=False)
-    parser_up.add_argument("--smp", action="append", nargs=2, default=[])
-    parser_up.add_argument("--config", default=None)
 
     parser_up.set_defaults(func=run_up)
 
@@ -767,7 +786,7 @@ if __name__ == "__main__":
     parser_down.add_argument("-n", "--name", default="galaxy")
     parser_down.add_argument("--rm", action="store_true", default=False)
     parser_down.add_argument("--host", default=None)
-    parser_down.add_argument("-w", "--work-dir", default="/tmp")
+    parser_down.add_argument("--config-dir", default=DEFAULT_CONFIG)
     parser_down.add_argument("--sudo", action="store_true", default=False)
     parser_down.set_defaults(func=run_down)
 
@@ -779,7 +798,7 @@ if __name__ == "__main__":
 
     parser_add = subparsers.add_parser('add')
     parser_add.add_argument("-n", "--name", default="galaxy")
-    parser_add.add_argument("-w", "--work-dir", default="/tmp")
+    parser_add.add_argument("--config-dir", default=DEFAULT_CONFIG)
     parser_add.add_argument("files", nargs="+")
     parser_add.set_defaults(func=run_add)
 
