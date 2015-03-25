@@ -556,7 +556,7 @@ def run_down(name="galaxy", host=None, rm=False, config_dir=DEFAULT_CONFIG, sudo
         call_docker_rm(
             name, host=host, sudo=sudo, volume_delete=True
         )
-        if not os.path.exists(config_dir):
+        if os.path.exists(config_dir):
             shutil.rmtree(config_dir)
 
 
