@@ -8,19 +8,19 @@ from nebula.docstore import FileDocStore
 def run_query(docstore, fields, size):
     doc = FileDocStore(file_path=docstore)
 
-    for entry in doc.filter():
+    for id, entry in doc.filter():
 
         if fields is None or len(fields) == 0:
             line = entry
         else:
-            line = "\t".join( json.dumps(entry.get(i, "")) for i in fields )
+            line = dict( (i, entry.get(i, "")) for i in fields )
 
         if size:
             size_value = doc.size(Target(uuid=entry['uuid']))
         else:
             size_value = ""
 
-        print size_value, line
+        print size_value, json.dumps(line)
 
 
 
