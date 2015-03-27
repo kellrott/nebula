@@ -230,7 +230,8 @@ def call_docker_save(
 
 def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None,
     sudo=False, lib_data=[], auto_add=False, tool_data=None, file_store=None, metadata_suffix=None,
-    tool_dir=None, config_dir=DEFAULT_CONFIG, tool_docker=False, force=False, tool_images=None, smp=[], cpus=None,
+    tool_dir=None, config_dir=DEFAULT_CONFIG, work_dir=None, tool_docker=False, force=False,
+    tool_images=None, smp=[], cpus=None,
     key="HSNiugRFvgT574F43jZ7N9F3"):
 
     if config_dir is None:
@@ -250,6 +251,23 @@ def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None
     if tool_data is not None:
         mounts[os.path.abspath(tool_data)] = "/tool_data"
         env['GALAXY_CONFIG_TOOL_DATA_PATH'] = "/tool_data"
+
+    if work_dir is not None:
+        if not os.path.exists(work_dir):
+            os.mkdir(work_dir)
+            os.chmod(work_dir, 0777)
+        files_path = os.path.join(os.path.abspath(work_dir), "files")
+        job_working_dir = os.path.join(os.path.abspath(work_dir), "job_working_directory")
+        if not os.path.exists(files_path):
+            os.mkdir(files_path)
+            os.chmod(files_path, 0777)
+        if not os.path.exists(job_working_dir):
+            os.mkdir(job_working_dir)
+            os.chmod(job_working_dir, 0777)
+        env['GALAXY_CONFIG_FILE_PATH'] = "/parent/database_files"
+        mounts[files_path] = "/parent/database_files"
+        env['GALAXY_CONFIG_JOB_WORKING_DIRECTORY'] = "/parent/job_working_directory"
+        mounts[job_working_dir] = "/parent/job_working_directory"
 
     config_dir = os.path.abspath(os.path.join(config_dir, "warpdrive_%s" % (name)))
     if not os.path.exists(config_dir):
@@ -752,9 +770,6 @@ JOB_CHILD_CONF = """<?xml version="1.0"?>
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("-v", action="store_true", default=False)
-    parser.add_argument("-vv", action="store_true", default=False)
-
     subparsers = parser.add_subparsers(title="subcommand")
 
     parser_up = subparsers.add_parser('up')
@@ -765,12 +780,14 @@ if __name__ == "__main__":
     parser_up.add_argument("-l", "--lib-data", action="append", default=[])
     parser_up.add_argument("-c", "--config", default=None)
     parser_up.add_argument("--config-dir", default=DEFAULT_CONFIG)
+    parser_up.add_argument("--work-dir", default=None)
     parser_up.add_argument("--smp", action="append", nargs=2, default=[])
     parser_up.add_argument("--cpus", type=int, default=None)
     parser_up.add_argument("-d", "--docker", dest="tool_docker", action="store_true", help="Launch jobs in child containers", default=False)
 
     #parser_up.add_argument("-s", "--file-store", default=None)
-
+    parser_up.add_argument("-v", action="store_true", default=False)
+    parser_up.add_argument("-vv", action="store_true", default=False)
     parser_up.add_argument("-f", "--force", action="store_true", default=False)
     parser_up.add_argument("-p", "--port", default="8080")
     parser_up.add_argument("-m", "--metadata", dest="metadata_suffix", default=None)
@@ -788,17 +805,23 @@ if __name__ == "__main__":
     parser_down.add_argument("--host", default=None)
     parser_down.add_argument("--config-dir", default=DEFAULT_CONFIG)
     parser_down.add_argument("--sudo", action="store_true", default=False)
+    parser_down.add_argument("-v", action="store_true", default=False)
+    parser_down.add_argument("-vv", action="store_true", default=False)
     parser_down.set_defaults(func=run_down)
 
     parser_status = subparsers.add_parser('status')
     parser_status.add_argument("-n", "--name", default="galaxy")
     parser_status.add_argument("--host", default=None)
     parser_status.add_argument("--sudo", action="store_true", default=False)
+    parser_status.add_argument("-v", action="store_true", default=False)
+    parser_status.add_argument("-vv", action="store_true", default=False)
     parser_status.set_defaults(func=run_status)
 
     parser_add = subparsers.add_parser('add')
     parser_add.add_argument("-n", "--name", default="galaxy")
     parser_add.add_argument("--config-dir", default=DEFAULT_CONFIG)
+    parser_add.add_argument("-v", action="store_true", default=False)
+    parser_add.add_argument("-vv", action="store_true", default=False)
     parser_add.add_argument("files", nargs="+")
     parser_add.set_defaults(func=run_add)
 
@@ -808,7 +831,8 @@ if __name__ == "__main__":
     parser_build.add_argument("--no-cache", action="store_true", default=False)
     parser_build.add_argument("-t", "--tool", action="append", default=None)
     parser_build.add_argument("-o", "--image-dir", default=None)
-
+    parser_build.add_argument("-v", action="store_true", default=False)
+    parser_build.add_argument("-vv", action="store_true", default=False)
 
     parser_build.add_argument("tool_dir")
     parser_build.set_defaults(func=run_build)

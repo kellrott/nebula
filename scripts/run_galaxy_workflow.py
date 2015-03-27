@@ -83,7 +83,7 @@ def run_workflow(args):
     service = ServiceFactory('galaxy', objectstore=doc,
         lib_data=[doc.file_path], tool_dir=args['tool_dir'], tool_data=args['tool_data'],
         galaxy=args['galaxy'], config_dir=args['config_dir'], sudo=args['sudo'], force=True,
-        tool_docker=True, smp=args['smp'], cpus=args['cpus'])
+        tool_docker=True, smp=args['smp'], cpus=args['cpus'], work_dir=args['work_dir'])
     service.start()
     task_job_ids = {}
     for task_name, task_data in tasks.items():
@@ -145,6 +145,8 @@ if __name__ == "__main__":
     parser.add_argument("--config-dir", help="Directory For Warpdrive config mounting", default=None)
     parser.add_argument("--smp", action="append", nargs=2, default=[])
     parser.add_argument("--sudo", action="store_true", default=False)
+    parser.add_argument("--work-dir", default=None)
+
 
     parser.add_argument("-b", "--doc-store", default="./nebula_data")
     parser.add_argument("-w", "--workflow", help="Galaxy Workflow File")
