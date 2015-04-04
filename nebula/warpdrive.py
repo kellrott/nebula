@@ -80,6 +80,27 @@ def call_docker_run(
     if proc.returncode != 0:
         raise Exception("Call Failed: %s" % (cmd))
 
+
+def call_docker_attach(
+    host=None, sudo=False,
+    name=None):
+
+    docker_path = get_docker_path()
+    cmd = [
+        docker_path, "attach", name
+    ]
+    sys_env = dict(os.environ)
+    if host is not None:
+        sys_env['DOCKER_HOST'] = host
+    if sudo:
+        cmd = ['sudo'] + cmd
+    logging.info("executing: " + " ".join(cmd))
+    proc = subprocess.Popen(cmd, close_fds=True, env=sys_env)
+    stdout, stderr = proc.communicate()
+    if proc.returncode != 0:
+        raise Exception("Call Failed: %s" % (cmd))
+
+
 def call_docker_copy(
     src,
     dst,
@@ -227,7 +248,7 @@ def call_docker_save(
 def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=None,
     sudo=False, lib_data=[], auto_add=False, tool_data=None, file_store=None, metadata_suffix=None,
     tool_dir=None, work_dir="/tmp", tool_docker=False, force=False, tool_images=None, smp=[], cpus=None,
-    key="HSNiugRFvgT574F43jZ7N9F3"):
+    hold=False, key="HSNiugRFvgT574F43jZ7N9F3"):
 
     if force and run_status(name=name,host=host, sudo=sudo):
         run_down(name=name, host=host, rm=True, work_dir=work_dir, sudo=sudo)
@@ -343,15 +364,15 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
         env=env
     )
 
-    host="localhost"
+    web_host="localhost"
     if 'DOCKER_HOST' in os.environ:
         u = urlparse.urlparse(os.environ['DOCKER_HOST'])
-        host = u.netloc.split(":")[0]
+        web_host = u.netloc.split(":")[0]
 
     while True:
         time.sleep(3)
         try:
-            url = "http://%s:%s/api/tools?key=%s" % (host, port, key)
+            url = "http://%s:%s/api/tools?key=%s" % (web_host, port, key)
             logging.debug("Pinging: %s" % (url))
             res = requests.get(url, timeout=3)
             if res.status_code / 100 == 5:
@@ -364,7 +385,7 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
         except requests.exceptions.Timeout:
             pass
 
-    rg = RemoteGalaxy("http://%s:%s"  % (host, port), 'admin', path_mapping=lib_mapping)
+    rg = RemoteGalaxy("http://%s:%s"  % (web_host, port), 'admin', path_mapping=lib_mapping)
     library_id = rg.create_library("Imported")
     folder_id = rg.library_find_contents(library_id, "/")['id']
     for data in data_load:
@@ -379,7 +400,7 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
             'docker_tag' : docker_tag,
             'port' : port,
             'lib_data' : list(os.path.abspath(a) for a in lib_data),
-            'host' : host,
+            'host' : web_host,
             'tool_dir' : os.path.abspath(tool_dir) if tool_dir is not None else None,
             'file_store' : os.path.abspath(file_store) if file_store is not None else None,
             'tool_data' : os.path.abspath(tool_data) if tool_data is not None else None,
@@ -388,6 +409,14 @@ def run_up(name="galaxy", docker_tag="bgruening/galaxy-stable", port=8080, host=
             'key' : key,
             'lib_mapping' : lib_mapping
         }))
+    
+    if hold:
+        call_docker_attach(
+            host=host,
+            sudo=sudo,
+            name=name
+        )
+    
     return rg
 
 class RemoteGalaxy(object):
@@ -760,6 +789,7 @@ if __name__ == "__main__":
     parser_up.add_argument("--sudo", action="store_true", default=False)
     parser_up.add_argument("--smp", action="append", nargs=2, default=[])
     parser_up.add_argument("--config", default=None)
+    parser_up.add_argument("--hold", action="store_true", default=False)
 
     parser_up.set_defaults(func=run_up)
 
