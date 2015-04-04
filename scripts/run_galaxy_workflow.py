@@ -3,7 +3,7 @@
 """
 
 To test:
-./scripts/run_galaxy_workflow.py -d examples/simple_galaxy \
+./scripts/run_galaxy_workflow.py \
 -t examples/simple_galaxy \
 -w examples/simple_galaxy/SimpleWorkflow.ga \
 -l examples/simple_galaxy/ examples/simple_galaxy/input.json
@@ -30,7 +30,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 def run_workflow(args):
     data_map = {}
-    for meta_path in glob(os.path.join(args['data'], "*.json")):
+    for meta_path in glob(os.path.join(args['lib_data'], "*.json")):
         data_path = re.sub(r'.json$', "", meta_path)
         if os.path.exists(data_path):
             try:
@@ -68,7 +68,9 @@ def run_workflow(args):
         params = meta.get("parameters", {})
         task_name = 'task_%s' % (i)
         if args['workflow'] is not None:
-            task = GalaxyWorkflow(task_name, args['workflow'], inputs=inputs, parameters=params, tags=meta.get("tags", None), docker=args['galaxy'], tool_dir=args['tools'], tool_data=args['tool_data'])
+            task = GalaxyWorkflow(task_name, args['workflow'],
+                inputs=inputs, parameters=params, tags=meta.get("tags", None),
+                galaxy=args['galaxy'], tool_dir=args['tool_dir'], tool_data=args['tool_data'])
         else:
             with open(args['yaml_workflow']) as handle:
                 yaml_text = handle.read()
@@ -79,9 +81,9 @@ def run_workflow(args):
 
     #this side happens on the worker node
     service = ServiceFactory('galaxy', objectstore=doc,
-        lib_data=[doc.file_path], tool_dir=args['tools'], tool_data=args['tool_data'],
-        docker_tag=args['galaxy'], work_dir=args['warpdrive_dir'], sudo=args['sudo'], force=True,
-        tool_docker=True, smp=args['smp'], cpus=args['cpus'])
+        lib_data=[doc.file_path], tool_dir=args['tool_dir'], tool_data=args['tool_data'],
+        galaxy=args['galaxy'], config_dir=args['config_dir'], sudo=args['sudo'], force=True,
+        tool_docker=True, smp=args['smp'], cpus=args['cpus'], work_dir=args['work_dir'])
     service.start()
     task_job_ids = {}
     for task_name, task_data in tasks.items():
@@ -132,19 +134,23 @@ def run_workflow(args):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("-g", "--galaxy", help="Galaxy Runner Image", default="bgruening/galaxy-stable:dev")
-    parser.add_argument("-wd", "--warpdrive-dir", help="Directory For Warpdrive config mounting", default="/tmp")
-    parser.add_argument("-w", "--workflow", help="Galaxy Workflow File")
-    parser.add_argument("-c", "--config", default=None)
-    parser.add_argument("-y", "--yaml-workflow", help="Galaxy YAML Workflow File")
-    parser.add_argument("-d", "--data", help="Data directory (metadata as .json files)", required=True)
-    parser.add_argument("-t", "--tools", help="Tool Directory", required=True)
+    #this block of command should be the same as the warpdrive program
+    parser.add_argument("-g",  "--galaxy", help="Galaxy Runner Image", default="bgruening/galaxy-stable:dev")
+    parser.add_argument("-t",  "--tool-dir", help="Tool Directory", required=True)
+    parser.add_argument("-ti", "--tool-images", default=None)
     parser.add_argument("-td", "--tool-data", help="Tool Directory", default=None)
-    parser.add_argument("--smp", action="append", nargs=2, default=[])
+    parser.add_argument("-l",  "--lib-data", help="Data directory (metadata as .json files)", required=True)
+    parser.add_argument("-c", "--config", default=None)
     parser.add_argument("--cpus", type=int, default=None)
-    parser.add_argument("-b", "--doc-store", default="./nebula_data")
-    parser.add_argument("-l", "--local-store", default="./nebula_work")
+    parser.add_argument("--config-dir", help="Directory For Warpdrive config mounting", default=None)
+    parser.add_argument("--smp", action="append", nargs=2, default=[])
     parser.add_argument("--sudo", action="store_true", default=False)
+    parser.add_argument("--work-dir", default=None)
+
+
+    parser.add_argument("-b", "--doc-store", default="./nebula_data")
+    parser.add_argument("-w", "--workflow", help="Galaxy Workflow File")
+    parser.add_argument("-y", "--yaml-workflow", help="Galaxy YAML Workflow File")
     parser.add_argument("--hold", action="store_true", default=False)
     parser.add_argument("inputs", nargs="+", default=[])
 

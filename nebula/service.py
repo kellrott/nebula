@@ -185,8 +185,8 @@ class GalaxyService(Service):
                         job.history = invc['history']
                         job.outputs = list( {"id" : i, "history" : invc['history'], "src" : "hda"} for i in invc['outputs'] )
         down_config = {}
-        if "work_dir" in self.config:
-            down_config['work_dir'] = self.config['work_dir']
+        #if "work_dir" in self.config:
+        #    down_config['work_dir'] = self.config['work_dir']
         run_down(name=self.config['name'], rm=True, sudo=self.config.get("sudo", False), **down_config)
 
     def status(self, job_id):
