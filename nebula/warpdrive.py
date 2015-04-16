@@ -247,6 +247,31 @@ def call_docker_save(
     if proc.returncode != 0:
         raise Exception("Call Failed: %s" % (cmd))
 
+def scan_directory(lpath, metadata_suffix=None):
+    data_load = []
+    meta_data = {}
+    for a in glob(os.path.join(lpath, "*")):
+        if metadata_suffix is None or not a.endswith(metadata_suffix):
+            if os.path.isfile(a):
+                data_load.append( a )
+            elif os.path.isdir(a):
+                d, m = scan_directory(a, metadata_suffix)
+                for i in d:
+                    data_load.append(i)
+                for k,v in m.items():
+                    meta_data[k] = v
+        elif metadata_suffix is not None:
+            file = a[:-len(metadata_suffix)]
+            if os.path.exists(file):
+                try:
+                    with open(a) as handle:
+                        txt = handle.read()
+                        md = json.loads(txt)
+                        meta_data[ os.path.join(dpath, os.path.relpath(file, lpath) ) ] = md
+                        logging.debug("Found metadata for %s " % (file))
+                except:
+                    pass
+    return data_load, meta_data
 
 
 def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None,
@@ -315,21 +340,12 @@ def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None
         mounts[lpath] = dpath
         lib_mapping[lpath] = dpath
         if auto_add:
-            for a in glob(os.path.join(lpath, "*")):
-                if metadata_suffix is None or not a.endswith(metadata_suffix):
-                    if os.path.isfile(a):
-                        data_load.append( a )
-                elif metadata_suffix is not None:
-                    file = a[:-len(metadata_suffix)]
-                    if os.path.exists(file):
-                        try:
-                            with open(a) as handle:
-                                txt = handle.read()
-                                md = json.loads(txt)
-                                meta_data[ os.path.join(dpath, os.path.relpath(file, lpath) ) ] = md
-                                logging.debug("Found metadata for %s " % (file))
-                        except:
-                            pass
+            d, m = scan_directory(lpath, metadata_suffix)
+            for i in d:
+                data_load.append(i)
+            for k,v in m:
+                meta_data[k] = v
+
     """
     if file_store:
         file_store = os.path.abspath(file_store)
@@ -436,14 +452,14 @@ def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None
             'key' : key,
             'lib_mapping' : lib_mapping
         }))
-    
+
     if hold:
         call_docker_attach(
             host=host,
             sudo=sudo,
             name=name
         )
-    
+
     return rg
 
 class RemoteGalaxy(object):
@@ -712,6 +728,7 @@ def dom_scan_iter(node, stack, prefix):
 
 def run_build(tool_dir, host=None, sudo=False, tool=None, no_cache=False, image_dir=None):
     for tool_conf in glob(os.path.join(tool_dir, "*", "*.xml")):
+        logging.info("Scanning: " + tool_conf)
         dom = parseXML(tool_conf)
         s = dom_scan(dom.childNodes[0], "tool")
         if s is not None:
