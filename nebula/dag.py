@@ -148,27 +148,10 @@ class TaskDag(object):
     def __str__(self):
         return "[%s]" % (",".join(str(a) for a in self.tasks.values()))
 
-class Target(object):
-    def __init__(self, uuid):
-        self.uuid = uuid
 
-    def to_dict(self):
-        return {
-            "model_class" : "Target",
-            'uuid' : self.uuid
-        }
-
-
-class TargetFile(Target):
-    def __init__(self, path):
-        self.path = os.path.abspath(path)
-        if not os.path.exists(self.path):
-            raise CompileException("File Not Found: %s" % (self.path))
-        super(TargetFile,self).__init__(str(file_uuid(self.path)))
-        self.parent_task_id = None
 
 class TaskNode(object):
-    def __init__(self, task_id, inputs=None, outputs=None, task_type=None, dag_id=None, docker=None):
+    def __init__(self, task_id, inputs=None, outputs=None, task_type=None, dag_id=None):
         self.task_id = task_id
         self.task_type = task_type
         self.state = PENDING
@@ -185,14 +168,6 @@ class TaskNode(object):
         self.outputs = {}
         if outputs is not None:
             self.init_outputs(outputs)
-
-        if docker is None:
-            self.docker = Docker('debian')
-        else:
-            if isinstance(docker, Docker):
-                self.docker = docker
-            else:
-                self.docker = Docker(docker)
 
 
     @staticmethod
@@ -298,24 +273,3 @@ class TaskFuture(object):
 
     def __str__(self):
         return "TaskFuture{%s}" % (",".join(self.task.get_outputs().keys()))
-
-
-class TargetFuture(object):
-    """
-    Task output that will be generated in the future
-    """
-    def __init__(self, parent_task_id, in_uuid=None):
-        if not isinstance(parent_task_id, basestring):
-            print parent_task_id
-            raise CompileException("Non-String parent ID")
-        self.parent_task_id = parent_task_id
-        if in_uuid is None:
-            self.uuid = str(uuid.uuid4())
-        else:
-            self.uuid = in_uuid
-
-    def to_dict(self):
-        return {
-            'task_id' : self.parent_task_id,
-            'uuid' : str(self.uuid)
-        }

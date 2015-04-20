@@ -2,10 +2,10 @@
 import os
 import logging
 
-from nebula.dag import TaskNode
+from nebula.tasks import Task
 from nebula.exceptions import CompileException
 
-class NebulaTask(TaskNode):
+class NebulaTask(Task):
     def __init__(self, path, inputs=None):
         super(NebulaTask,self).__init__("nebula:/" + path, None, None)
         self.path = os.path.abspath(path)

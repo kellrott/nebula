@@ -275,7 +275,7 @@ def scan_directory(lpath, metadata_suffix=None):
 
 
 def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None,
-    sudo=False, lib_data=[], auto_add=False, tool_data=None, file_store=None, metadata_suffix=None,
+    sudo=False, lib_data=[], auto_add=False, tool_data=None, metadata_suffix=None,
     tool_dir=None, config_dir=DEFAULT_CONFIG, work_dir=None, tool_docker=False, force=False,
     tool_images=None, smp=[], cpus=None,
     hold=False, key="HSNiugRFvgT574F43jZ7N9F3"):
@@ -345,15 +345,6 @@ def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None
                 data_load.append(i)
             for k,v in m:
                 meta_data[k] = v
-
-    """
-    if file_store:
-        file_store = os.path.abspath(file_store)
-        dpath = "/parent/files"
-        #env['GALAXY_CONFIG_FILE_PATH'] = dpath
-        lib_mapping[file_store] = dpath
-        mounts[file_store] = dpath
-    """
 
     if tool_docker:
         common_volumes = ",".join( "%s:%s:ro" % (k,v) for k,v in lib_mapping.items() )
@@ -445,7 +436,6 @@ def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None
             'lib_data' : list(os.path.abspath(a) for a in lib_data),
             'host' : web_host,
             'tool_dir' : os.path.abspath(tool_dir) if tool_dir is not None else None,
-            'file_store' : os.path.abspath(file_store) if file_store is not None else None,
             'tool_data' : os.path.abspath(tool_data) if tool_data is not None else None,
             'metadata_suffix' : metadata_suffix,
             'tool_docker' : tool_docker,

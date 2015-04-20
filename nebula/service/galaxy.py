@@ -1,28 +1,17 @@
 
-
-# Licensed under the Apache License, Version 2.0 (the "License"); you may not
-# use this file except in compliance with the License. You may obtain a copy of
-# the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations under
-# the License.
-
-import os
-import time
-import json
 import logging
+import time
 
-from nebula.dag import Target
-from nebula.warpdrive import run_up, run_add, run_down
-from threading import Thread, RLock
-from nebula.exceptions import NotImplementedException
-
+from nebula.service import Service
 from nebula.galaxy import Workflow
+from nebula.target import Target
+from nebula.warpdrive import run_up, run_add, run_down
+
+class HDATarget(Target):
+    def __init__(self, meta):
+        self.meta = meta
+        self.uuid = meta['id']
+
 
 def which(file):
     for path in os.environ["PATH"].split(":"):
@@ -43,98 +32,41 @@ def port_active(portnum):
         return False
 
 
-class Service(Thread):
-    def __init__(self, name):
-        super(Service, self).__init__()
-        self.name = name
-        self.queue_lock = RLock()
-        self.queue = {}
-        self.active = {}
-
-        self.running = True
-        self.job_count = 0
-
-    def submit(self, job):
-        with self.queue_lock:
-            j = self.job_count
-            self.job_count += 1
-            self.queue[j] = job
-            return j
-
-    def get_queued(self):
-        with self.queue_lock:
-            if len(self.queue):
-                job_id, job = self.queue.popitem()
-                self.active[job_id] = job
-                return job_id, job
-        return None
-
-    def stop(self):
-        self.running = False
-
-    def status(self, job_id):
-        with self.queue_lock:
-            if job_id in self.queue:
-                return "waiting"
-            if job_id in self.active:
-                return "active"
-            return "unknown"
-
-    def get_job(self, job_id):
-        with self.queue_lock:
-            if job_id in self.queue:
-                return self.queue[job_id]
-            if job_id in self.active:
-                return self.active[job_id]
-        return None
-
-    def store_data(self, data, object_store):
-        raise NotImplementedException()
-
-
-class TaskJob:
-    def __init__(self, task_data):
-        self.task_data = task_data
-        self.service_name = self.task_data['service']
-        self.history = None
-        self.outputs = []
-        self.error = None
-
-    def set_running(self):
-        pass
-
-    def set_done(self):
-        pass
-
-    def set_error(self, msg="Failure"):
-        self.error = msg
-
-    def get_inputs(self):
-        out = {}
-        for name, value in self.task_data['request']['inputs'].items():
-            out[name] = HDATarget(value)
-        return out
-
-    def get_parameters(self):
-        return self.task_data['request']['parameters']
-
-    def get_outputs(self):
-        return self.outputs
-
-class HDATarget(Target):
-    def __init__(self, meta):
-        self.meta = meta
-        self.uuid = meta['id']
 
 class GalaxyService(Service):
+
+    config_defaults= {
+        'name' : "nebula_galaxy",
+        'port' : 19999,
+        'metadata_suffix' : ".json",
+        'galaxy' : "bgruening/galaxy-stable",
+        'force' : True,
+        'tool_docker' : True
+    }
+
     def __init__(self, objectstore, **kwds):
         super(GalaxyService, self).__init__('galaxy')
         self.config = kwds
+        for k in self.config_defaults:
+            if k not in self.config:
+                self.config[k] = self.config_defaults[k]
         self.objectstore = objectstore
         self.rg = None
 
-    def run(self):
+    def to_dict(self):
+        return {
+            'service_name' : 'galaxy',
+            'config' : self.config
+        }
+
+    def runService(self):
         with self.queue_lock:
+            #FIXME: the 'file_path' value is specific to the DiskObjectStore
+            docstore_path = self.objectstore.file_path
+            if 'lib_data' in self.config:
+                self.config['lib_data'].append(self.objectstore.file_path)
+            else:
+                self.config['lib_data'] = [ self.objectstore.file_path ]
             self.rg = run_up( **self.config )
             library_id = self.rg.library_find("Imported")['id']
             folder_id = self.rg.library_find_contents(library_id, "/")['id']
@@ -144,6 +76,7 @@ class GalaxyService(Service):
             time.sleep(3)
             req = self.get_queued()
             if req is not None:
+                logging.info("Received task request")
                 with self.queue_lock:
                     job_id, job = req
                     wids = []
@@ -169,15 +102,15 @@ class GalaxyService(Service):
                             break
                         time.sleep(2)
 
-                    self.rg.add_workflow(job.task_data['workflow'])
-                    wf = Workflow(job.task_data['workflow'])
+                    self.rg.add_workflow(job.task.workflow_data)
+                    wf = Workflow(job.task.workflow_data)
                     inputs = {}
                     for k, v in job.get_inputs().items():
                         inputs[k] = {
                             'src' : "uuid",
                             'id' : v.uuid
                         }
-                    invc = self.rg.call_workflow(request=job.task_data['request'])
+                    invc = self.rg.call_workflow(request=job.task.get_workflow_request())
                     if 'err_msg' in invc:
                         logging.error("Workflow invocation failed")
                         job.set_error("Workflow Invocation Failed")
@@ -226,24 +159,3 @@ class GalaxyService(Service):
         meta['provenance'] = prov
         meta['job'] = self.rg.get_job(prov['job_id'])
         return meta
-
-
-service_map = {
-    #'shell' : ShellService,
-    'galaxy' : GalaxyService
-}
-
-config_defaults= {
-    'galaxy' : {
-        'name' : "nebula_galaxy",
-        'port' : 19999,
-        'metadata_suffix' : ".json"
-    }
-
-}
-
-def ServiceFactory(service_name, **kwds):
-    d = {}
-    d.update(config_defaults[service_name])
-    d.update(kwds)
-    return service_map[service_name](**d)
