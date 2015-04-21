@@ -728,24 +728,26 @@ def run_build(tool_dir, host=None, sudo=False, tool=None, no_cache=False, image_
                     for node, prefix, attrs, text in scan:
                         if 'type' in attrs and attrs['type'] == 'docker':
                             tag = text
-                            call_docker_build(
-                                host = host,
-                                sudo = sudo,
-                                no_cache=no_cache,
-                                tag=tag,
-                                dir=os.path.dirname(tool_conf)
-                            )
-
-                            if image_dir is not None:
-                                if not os.path.exists(image_dir):
-                                    os.mkdir(image_dir)
-                                image_file = os.path.join(image_dir, "docker_" + tag.split(":")[0] + ".tar")
-                                call_docker_save(
-                                    host=host,
-                                    sudo=sudo,
+                            dockerfile = os.path.join(os.path.dirname(tool_conf), "Dockerfile")
+                            if os.path.exists(dockerfile):
+                                call_docker_build(
+                                    host = host,
+                                    sudo = sudo,
+                                    no_cache=no_cache,
                                     tag=tag,
-                                    output=image_file
+                                    dir=os.path.dirname(tool_conf)
                                 )
+
+                                if image_dir is not None:
+                                    if not os.path.exists(image_dir):
+                                        os.mkdir(image_dir)
+                                    image_file = os.path.join(image_dir, "docker_" + tag.split(":")[0] + ".tar")
+                                    call_docker_save(
+                                        host=host,
+                                        sudo=sudo,
+                                        tag=tag,
+                                        output=image_file
+                                    )
 
 
 
