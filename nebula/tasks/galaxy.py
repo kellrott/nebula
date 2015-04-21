@@ -122,18 +122,29 @@ class GalaxyWorkflowTask(Task):
         dsmap = {}
         parameters = {}
         out = {}
-        for k, v in input.get("inputs", input.get("ds_map", {})).items():
-            if k in self.desc['steps']:
-                out[k] == v
+        for k, v in self.request.items():
+            if isinstance(v, Target):
+                if k in self.workflow_data['steps']:
+                    out[k] = {'src':'uuid', 'id' : v.uuid}
+                else:
+                    found = False
+                    for step_id, step in self.workflow_data['steps'].items():
+                        label = step['uuid']
+                        if step['type'] == 'data_input':
+                            if step['inputs'][0]['name'] == k:
+                                dsmap[label] = {'src':'uuid', 'id' : v.uuid}
             else:
-                found = False
-                for step in self.steps():
-                    label = step.uuid
-                    if step.type == 'data_input':
-                        if step.inputs[0]['name'] == k:
-                            found = True
-                            dsmap[label] = {'src':'uuid', 'id' : v.uuid}
+                if k in self.workflow_data['steps']:
+                    out[k] == v
+                else:
+                    found = False
+                    for step_id, step in self.workflow_data['steps'].items():
+                        label = step['uuid']
+                        if step['type'] == 'tool':
+                            if step['annotation'] == k:
+                                parameters[label] = v
 
+        """
         for k, v in input.get("parameters", {}).items():
             if k in self.desc['steps']:
                 out[k] == v
@@ -164,7 +175,9 @@ class GalaxyWorkflowTask(Task):
                     if step_name not in parameters:
                         parameters[step_name] = {} # json.loads(step_info['tool_state'])
                     parameters[step_name]["__POST_JOB_ACTIONS__"] = pja_map
-        out['workflow_id'] = self.desc['uuid']
+        """
+
+        out['workflow_id'] = self.workflow_data['uuid']
         out['inputs'] = dsmap
         out['parameters'] = parameters
         out['inputs_by'] = "step_uuid"

@@ -3,9 +3,10 @@
 import unittest
 import time
 import os
+import shutil
 import nebula.builder
 import nebula.service
-
+from nebula.docstore import FileDocStore
 
 class TestLaunch(unittest.TestCase):
 
@@ -22,7 +23,8 @@ class TestLaunch(unittest.TestCase):
         capture = nebula.builder.init_capture()
 
     def testServiceDescription(self):
-        service = nebula.service.GalaxyService("./test_tmp/docstore")
+        store = FileDocStore("./test_tmp/docstore")
+        service = nebula.service.GalaxyService(store)
         service_dict = service.to_dict()
         self.assertIn('service_name', service_dict)
         self.assertEqual('galaxy', service_dict['service_name'])
@@ -30,8 +32,9 @@ class TestLaunch(unittest.TestCase):
 
 
     def testServiceStart(self):
+        store = FileDocStore("./test_tmp/docstore")
         service = nebula.service.GalaxyService(
-            "./test_tmp/docstore",
+            store,
             name="nosetest_galaxy",
             force=True,
             port=20022
@@ -40,6 +43,3 @@ class TestLaunch(unittest.TestCase):
         time.sleep(10)
         self.assertFalse(service.in_error())
         service.stop()
-
-
-    

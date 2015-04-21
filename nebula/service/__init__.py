@@ -17,6 +17,7 @@ import sys
 import time
 import json
 import logging
+import traceback
 
 from threading import Thread, RLock
 from nebula.exceptions import NotImplementedException
@@ -33,11 +34,12 @@ class Service(Thread):
         self.running = True
         self.job_count = 0
         self.exception = None
+        self.exception_str = None
 
     def submit(self, task):
         with self.queue_lock:
-            job = TaskJob(task)
             j = self.job_count
+            job = TaskJob(j, task)
             self.job_count += 1
             self.queue[j] = job
             return job
@@ -54,11 +56,13 @@ class Service(Thread):
         try:
             self.runService()
         except Exception, e:
+            self.exception_str = traceback.format_exc()
+            logging.error("Service Failure:" + str(e))
             self.exception = e
 
     def in_error(self):
         if self.exception is not None:
-            print self.exception
+            print self.exception_str
         return self.exception is not None
 
     def stop(self):
@@ -68,10 +72,12 @@ class Service(Thread):
         sleep_time = 1
         while True:
             waiting = False
+            print "Waiting", items
             for i in items:
-                status = self.status(i)
+                status = self.status(i.job_id)
+                print "Status", i, status
                 logging.info("Status check %s %s" % (status, i))
-                if status not in ['ok', 'error']:
+                if status not in ['ok', 'error', 'unknown']:
                     waiting = True
             if not waiting:
                 break
@@ -102,12 +108,14 @@ class Service(Thread):
 
 
 class TaskJob:
-    def __init__(self, task):
+    def __init__(self, job_id, task):
         self.task = task
         #self.service_name = self.task['service']
         self.history = None
         self.outputs = []
         self.error = None
+        self.job_id = job_id
+        self.state = "queued"
 
     def set_running(self):
         pass
@@ -118,9 +126,13 @@ class TaskJob:
     def set_error(self, msg="Failure"):
         self.error = msg
 
-
     def get_inputs(self):
         return self.task.get_inputs()
+
+    def get_status(self):
+        if self.error is not None:
+            return "error"
+        return self.state
 
     """
     def get_parameters(self):

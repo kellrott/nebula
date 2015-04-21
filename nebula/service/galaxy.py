@@ -111,6 +111,7 @@ class GalaxyService(Service):
                             'id' : v.uuid
                         }
                     invc = self.rg.call_workflow(request=job.task.get_workflow_request())
+                    print "Called Workflow", invc
                     if 'err_msg' in invc:
                         logging.error("Workflow invocation failed")
                         job.set_error("Workflow Invocation Failed")
@@ -132,8 +133,9 @@ class GalaxyService(Service):
                 for data in job.outputs:
                     meta = self.rg.get_hda(job.history, data['id'])
                     if meta['state'] != 'ok':
+                        job.state = meta['state']
                         return meta['state']
-                return "ok"
+                return job.state
             return "waiting"
         return s
 

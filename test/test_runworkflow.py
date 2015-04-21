@@ -18,11 +18,14 @@ class TestRunWorkflow(unittest.TestCase):
     def setUp(self):
         if not os.path.exists("./test_tmp"):
             os.mkdir("test_tmp")
+        self.service = None
 
     def tearDown(self):
-        #if os.path.exists("./test_tmp/docstore"):
-        #    shutil.rmtree("./test_tmp/docstore")
-        pass
+        #if self.service is not None:
+        #    self.service.stop()
+
+        if os.path.exists("./test_tmp/docstore"):
+            shutil.rmtree("./test_tmp/docstore")
 
     def testRunSimple(self):
         input = {
@@ -53,8 +56,10 @@ class TestRunWorkflow(unittest.TestCase):
 
         service = GalaxyService(
             objectstore=doc,
-            name="nosetest_galaxy"
+            name="nosetest_galaxy",
+            galaxy="bgruening/galaxy-stable:dev"
         )
+        self.service = service
 
         new_task_data = json.loads(task_data_str)
         new_task = nebula.tasks.from_dict(new_task_data)
@@ -66,7 +71,9 @@ class TestRunWorkflow(unittest.TestCase):
         job = service.submit(new_task)
         self.assertTrue( isinstance(job, TaskJob) )
         self.assertFalse( service.in_error() )
-        logging.info("Waiting")
+        #logging.info("Waiting")
         service.wait([job])
+
+        self.assertIn(job.get_status(), ['ok'])
 
         self.assertFalse( service.in_error() )
