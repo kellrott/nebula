@@ -21,8 +21,8 @@ class TestRunWorkflow(unittest.TestCase):
         self.service = None
 
     def tearDown(self):
-        #if self.service is not None:
-        #    self.service.stop()
+        if self.service is not None:
+            self.service.stop()
 
         if os.path.exists("./test_tmp/docstore"):
             shutil.rmtree("./test_tmp/docstore")

@@ -130,11 +130,13 @@ class GalaxyService(Service):
                 job = self.get_job(job_id)
                 if job.error is not None:
                     return "error"
+                ready = True
                 for data in job.outputs:
                     meta = self.rg.get_hda(job.history, data['id'])
                     if meta['state'] != 'ok':
-                        job.state = meta['state']
-                        return meta['state']
+                        ready = False
+                if ready:
+                    job.state = "ok"
                 return job.state
             return "waiting"
         return s
