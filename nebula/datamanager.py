@@ -1,20 +1,8 @@
 
 import os
 import logging
-import hashlib
 import uuid
 import itertools
-
-def file_uuid(path):
-    """Generate a UUID from the SHA-1 of file."""
-    hash = hashlib.sha1()
-    with open(path, 'rb') as handle:
-        while True:
-            block = handle.read(1024)
-            if not block: break
-            hash.update(block)
-    return uuid.UUID(bytes=hash.digest()[:16], version=5)
-
 
 class DataManager:
     def __init__(self, output_dir, shared_dirs):

@@ -44,29 +44,30 @@ class GalaxyService(Service):
         'tool_docker' : True
     }
 
-    def __init__(self, objectstore, **kwds):
+    def __init__(self, docstore, **kwds):
         super(GalaxyService, self).__init__('galaxy')
         self.config = kwds
         for k in self.config_defaults:
             if k not in self.config:
                 self.config[k] = self.config_defaults[k]
-        self.objectstore = objectstore
+        self.docstore = docstore
         self.rg = None
 
     def to_dict(self):
         return {
             'service_name' : 'galaxy',
-            'config' : self.config
+            'config' : self.config,
+            'docstore' : self.docstore.url
         }
 
     def runService(self):
         with self.queue_lock:
             #FIXME: the 'file_path' value is specific to the DiskObjectStore
-            docstore_path = self.objectstore.file_path
+            docstore_path = self.docstore.file_path
             if 'lib_data' in self.config:
-                self.config['lib_data'].append(self.objectstore.file_path)
+                self.config['lib_data'].append(self.docstore.file_path)
             else:
-                self.config['lib_data'] = [ self.objectstore.file_path ]
+                self.config['lib_data'] = [ self.docstore.file_path ]
             self.rg = run_up( **self.config )
             library_id = self.rg.library_find("Imported")['id']
             folder_id = self.rg.library_find_contents(library_id, "/")['id']
@@ -81,7 +82,7 @@ class GalaxyService(Service):
                     job_id, job = req
                     wids = []
                     for k, v in job.get_inputs().items():
-                        file_path = self.objectstore.get_filename(Target(v.uuid))
+                        file_path = self.docstore.get_filename(Target(v.uuid))
                         logging.info("Loading FilePath: %s" % (file_path))
 
                         nli = self.rg.library_paste_file(library_id=library_id, library_folder_id=folder_id,

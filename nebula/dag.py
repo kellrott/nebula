@@ -22,7 +22,6 @@ import subprocess
 from nebula.docker import Docker
 from nebula.exceptions import NotImplementedException
 from nebula.exceptions import CompileException
-from nebula.datamanager import file_uuid
 
 PENDING = 'PENDING'
 READY = 'READY'

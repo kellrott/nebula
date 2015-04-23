@@ -98,6 +98,7 @@ class FileDocStore(DocStore):
         objs = DiskObjectStore(DiskObjectStoreConfig(), file_path=file_path)
         super(FileDocStore, self).__init__(objectstore=objs, **kwds)
         self.file_path = file_path
+        self.url = os.path.abspath(self.file_path)
         if not os.path.exists(self.file_path):
             os.mkdir(self.file_path)
 
