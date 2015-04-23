@@ -13,8 +13,12 @@ class TestLaunch(unittest.TestCase):
     def setUp(self):
         if not os.path.exists("./test_tmp"):
             os.mkdir("test_tmp")
+        self.service = None
 
     def tearDown(self):
+        if self.service is not None:
+            self.service.stop()
+
         if os.path.exists("./test_tmp/docstore"):
             shutil.rmtree("./test_tmp/docstore")
 
@@ -33,13 +37,14 @@ class TestLaunch(unittest.TestCase):
 
     def testServiceStart(self):
         store = FileDocStore("./test_tmp/docstore")
-        service = nebula.service.GalaxyService(
+        self.service = nebula.service.GalaxyService(
             store,
             name="nosetest_galaxy",
             force=True,
             port=20022
         )
-        service.start()
+        self.service.start()
         time.sleep(10)
-        self.assertFalse(service.in_error())
-        service.stop()
+        self.assertFalse(self.service.in_error())
+        self.service.stop()
+        self.service = None

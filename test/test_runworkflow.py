@@ -57,7 +57,8 @@ class TestRunWorkflow(unittest.TestCase):
         service = GalaxyService(
             objectstore=doc,
             name="nosetest_galaxy",
-            galaxy="bgruening/galaxy-stable:dev"
+            galaxy="bgruening/galaxy-stable",
+            port=20022
         )
         self.service = service
 
@@ -65,6 +66,7 @@ class TestRunWorkflow(unittest.TestCase):
         new_task = nebula.tasks.from_dict(new_task_data)
 
         logging.info("Starting Service")
+        print "Starting service"
         service.start()
         self.assertFalse( service.in_error() )
         logging.info("Starting Tasks")
