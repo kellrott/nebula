@@ -37,6 +37,8 @@ class TestRunWorkflow(unittest.TestCase):
                 "lineNum" : 3
             }
         }
+        bad_input = dict(input)
+        del bad_input['tail_select']
 
         doc = FileDocStore(file_path="./test_tmp/docstore")
         logging.info("Adding files to object store")
@@ -62,6 +64,7 @@ class TestRunWorkflow(unittest.TestCase):
         )
         self.service = service
 
+        #make sure the generated task is serializable
         new_task_data = json.loads(task_data_str)
         new_task = nebula.tasks.from_dict(new_task_data)
 
@@ -75,7 +78,15 @@ class TestRunWorkflow(unittest.TestCase):
         self.assertFalse( service.in_error() )
         #logging.info("Waiting")
         service.wait([job])
-
         self.assertIn(job.get_status(), ['ok'])
+
+        bad_task = nebula.tasks.GalaxyWorkflowTask(
+            "test_workflow_bad",
+            "examples/simple_galaxy/SimpleWorkflow.ga",
+            inputs=bad_input
+        )
+        job = service.submit(bad_task)
+        service.wait([job])
+        self.assertIn(job.get_status(), ['error'])
 
         self.assertFalse( service.in_error() )
