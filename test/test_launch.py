@@ -21,6 +21,7 @@ class TestLaunch(unittest.TestCase):
 
         if os.path.exists("./test_tmp/docstore"):
             shutil.rmtree("./test_tmp/docstore")
+        time.sleep(5)
 
 
     def testCapture(self):

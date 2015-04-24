@@ -52,6 +52,9 @@ class Service(Thread):
                 return job_id, job
         return None
 
+    def is_ready(self):
+        return True
+
     def run(self):
         try:
             self.runService()
@@ -72,10 +75,10 @@ class Service(Thread):
         sleep_time = 1
         while True:
             waiting = False
-            print "Waiting", items
+            #print "Waiting", items
             for i in items:
                 status = self.status(i.job_id)
-                print "Status", i, status
+                #print "Status", i, status, self.is_ready()
                 logging.info("Status check %s %s" % (status, i))
                 if status not in ['ok', 'error', 'unknown']:
                     waiting = True

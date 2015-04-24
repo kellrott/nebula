@@ -52,6 +52,7 @@ class GalaxyService(Service):
                 self.config[k] = self.config_defaults[k]
         self.docstore = docstore
         self.rg = None
+        self.ready = False
 
     def to_dict(self):
         return {
@@ -60,17 +61,21 @@ class GalaxyService(Service):
             'docstore' : self.docstore.url
         }
 
+    def is_ready(self):
+        return self.ready
+
     def runService(self):
-        with self.queue_lock:
-            #FIXME: the 'file_path' value is specific to the DiskObjectStore
-            docstore_path = self.docstore.file_path
-            if 'lib_data' in self.config:
-                self.config['lib_data'].append(self.docstore.file_path)
-            else:
-                self.config['lib_data'] = [ self.docstore.file_path ]
-            self.rg = run_up( **self.config )
-            library_id = self.rg.library_find("Imported")['id']
-            folder_id = self.rg.library_find_contents(library_id, "/")['id']
+        #FIXME: the 'file_path' value is specific to the DiskObjectStore
+        docstore_path = self.docstore.file_path
+        if 'lib_data' in self.config:
+            self.config['lib_data'].append(self.docstore.file_path)
+        else:
+            self.config['lib_data'] = [ self.docstore.file_path ]
+        self.rg = run_up( **self.config )
+        library_id = self.rg.library_find("Imported")['id']
+        folder_id = self.rg.library_find_contents(library_id, "/")['id']
+
+        self.ready = True
 
         logging.info("Galaxy Running")
         while self.running:

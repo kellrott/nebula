@@ -57,9 +57,10 @@ class TestRunWorkflow(unittest.TestCase):
         task_data_str = json.dumps(task_data)
 
         service = GalaxyService(
-            objectstore=doc,
+            docstore=doc,
             name="nosetest_galaxy",
             galaxy="bgruening/galaxy-stable",
+            force=True,
             port=20022
         )
         self.service = service
