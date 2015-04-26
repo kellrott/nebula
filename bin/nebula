@@ -18,14 +18,13 @@ import time
 import argparse
 import logging
 import socket
+import logging
 
+from nebula.service import ServiceConfig
+from nebula.tasks import TaskGroup
 
-from nebula import NebulaCompile, Scheduler, Config, WebSite, WorkRepo, DagSet
-from nebula.objectstore import init_objectstore_url
-from nebula.docstore import init_docstore_url
+def action_manage(args):
 
-def run_main(args):
-    
     if args.builddir is None:
         bfile = os.path.abspath("Nebulafile")
         if not os.path.exists(file):
@@ -74,7 +73,7 @@ def run_main(args):
         web.stop()
         drms.stop()
 
-def run_tree(args):
+def action_tree(args):
     config = Config(
         mesos=args.mesos,
         port=args.port,
@@ -95,31 +94,68 @@ def run_tree(args):
     for a in dagset.dags.values():
         print "DAG:", a
 
+def action_run(args):
+    print args
+
+    config = ServiceConfig()
+    with open(args.service_file) as handle:
+        config.load(handle)
+
+    taskgroup = TaskGroup()
+    with open(args.task_file) as handle:
+        taskgroup.load(handle)
+
+    service = config.create()
+    try:
+        logging.info("Starting Service")
+        service.start()
+        logging.info("Starting Tasks")
+        jobs = []
+        for new_task in taskgroup:
+            job = service.submit(new_task)
+            jobs.append(job)
+
+        service.wait(jobs)
+
+        for jobs in jobs:
+            if job.get_status() not in ['ok']:
+                sys.stderr.write("---ERROR---\n")
+                sys.stderr.write(job.error_msg + "\n")
+                sys.stderr.write("---ERROR---\n")
+                raise Exception("Job Failed")
+    finally:
+        service.stop()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(title="subcommand")
-    
-    parser_tree = subparsers.add_parser('tree')
-    parser_tree.set_defaults(func=run_tree)
-    
-    parser_run = subparsers.add_parser('run')
-    parser_run.set_defaults(func=run_main)
-    parser_run.add_argument("--mesos", default="127.0.0.1:5050")
-    parser_run.add_argument("--port", type=int, default=9999)
-    parser_run.add_argument("-v", action="store_true", default=False)
-    #parser_run.add_argument("-r", "--resume", action="store_true", default=False)
-    parser_run.add_argument("--docker-clean", action="store_true", default=False)
-    
-    parser_run.add_argument("--object-store", default="/tmp/nebula-storage")
-    parser_run.add_argument("--doc-store", default="/tmp/nebula-docs")
-    parser_run.add_argument("-s", "--server", default=None)
-    #parser_run.add_argument("--sf", "--shared", dest="shared", action="append", default=[])
-    parser_run.add_argument("-m", "--max-servers", type=int, default=0)
-    parser_run.add_argument("-w", "--workdir", default="/tmp")
-    parser_run.add_argument("--docker", default=None)
 
-    parser_run.add_argument("builddir", nargs="?", default=None)
+    parser_run = subparsers.add_parser('run')
+    parser_run.add_argument("-v", action="store_true", default=False)
+    parser_run.add_argument("service_file")
+    parser_run.add_argument("task_file")
+    parser_run.set_defaults(func=action_run)
+
+    parser_tree = subparsers.add_parser('tree')
+    parser_tree.set_defaults(func=action_tree)
+
+    parser_manage = subparsers.add_parser('manage')
+    parser_manage.set_defaults(func=action_manage)
+    parser_manage.add_argument("--mesos", default="127.0.0.1:5050")
+    parser_manage.add_argument("--port", type=int, default=9999)
+    parser_manage.add_argument("-v", action="store_true", default=False)
+    #parser_manage.add_argument("-r", "--resume", action="store_true", default=False)
+    parser_manage.add_argument("--docker-clean", action="store_true", default=False)
+
+    parser_manage.add_argument("--object-store", default="/tmp/nebula-storage")
+    parser_manage.add_argument("--doc-store", default="/tmp/nebula-docs")
+    parser_manage.add_argument("-s", "--server", default=None)
+    #parser_manage.add_argument("--sf", "--shared", dest="shared", action="append", default=[])
+    parser_manage.add_argument("-m", "--max-servers", type=int, default=0)
+    parser_manage.add_argument("-w", "--workdir", default="/tmp")
+    parser_manage.add_argument("--docker", default=None)
+
+    parser_manage.add_argument("builddir", nargs="?", default=None)
     args = parser.parse_args()
 
 
@@ -137,4 +173,3 @@ if __name__ == "__main__":
     #except Exception, e:
     #    sys.stderr.write("%s\n" % (e.message))
     #    sys.exit(1)
-

@@ -8,7 +8,8 @@ import logging
 import unittest
 import nebula.builder
 import nebula.service
-import nebula.tasks
+import subprocess
+from nebula.tasks import TaskGroup
 from nebula.docstore import FileDocStore
 from nebula.docstore.util import sync_doc_dir
 from nebula.service import GalaxyService, TaskJob
@@ -37,7 +38,7 @@ class TestLaunch(unittest.TestCase):
             }
         }
 
-        doc = FileDocStore(file_path="./test_tmp/docstore")
+        doc = FileDocStore(file_path=get_abspath("../test_tmp/docstore"))
         logging.info("Adding files to object store")
         sync_doc_dir("examples/simple_galaxy/", doc,
             uuid_set=["c39ded10-6073-11e4-9803-0800200c9a66", "26fd12a2-9096-4af2-a989-9e2f1cb692fe"]
@@ -45,13 +46,9 @@ class TestLaunch(unittest.TestCase):
         logging.info("Creating Task")
         task = nebula.tasks.GalaxyWorkflowTask(
             "test_workflow",
-            "examples/simple_galaxy/SimpleWorkflow.ga",
+            get_abspath("../examples/simple_galaxy/SimpleWorkflow.ga"),
             inputs=input
         )
-
-        task_data = task.to_dict()
-        #make sure the task data can be serialized
-        task_data_str = json.dumps(task_data)
 
         service = GalaxyService(
             docstore=doc,
@@ -59,4 +56,20 @@ class TestLaunch(unittest.TestCase):
             galaxy="bgruening/galaxy-stable",
             port=20022
         )
-        self.service = service
+
+        task_path = get_abspath("../test_tmp/test.tasks")
+        service_path = get_abspath("../test_tmp/test.service")
+        taskset = TaskGroup()
+        taskset.append(task)
+        with open(task_path, "w") as handle:
+            taskset.store(handle)
+
+        with open(service_path, "w") as handle:
+            service.get_config().store(handle)
+
+        env = dict(os.environ)
+        if 'PYTHONPATH' in env:
+            env['PYTHONPATH'] += ":" + get_abspath("../")
+        else:
+            env['PYTHONPATH'] = get_abspath("../")
+        subprocess.check_call([get_abspath("../bin/nebula"), "run", service_path, task_path], env=env)

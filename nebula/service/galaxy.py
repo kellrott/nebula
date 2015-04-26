@@ -2,7 +2,8 @@
 import logging
 import time
 
-from nebula.service import Service
+import nebula.docstore
+from nebula.service import Service, ServiceConfig
 from nebula.galaxy import Workflow
 from nebula.target import Target
 from nebula.warpdrive import run_up, run_add, run_down
@@ -56,10 +57,19 @@ class GalaxyService(Service):
 
     def to_dict(self):
         return {
-            'service_name' : 'galaxy',
+            'service_type' : 'Galaxy',
             'config' : self.config,
-            'docstore' : self.docstore.url
+            'docstore_url' : self.docstore.url
         }
+
+    @staticmethod
+    def from_dict(data):
+        meta = dict(data)
+        doc_store = nebula.docstore.from_url(data['docstore_url'])
+        return GalaxyService( doc_store, **data['config'] )
+
+    def get_config(self):
+        return ServiceConfig(**self.to_dict() )
 
     def is_ready(self):
         return self.ready
@@ -134,13 +144,13 @@ class GalaxyService(Service):
         if s == 'active':
             if self.rg is not None:
                 job = self.get_job(job_id)
-                if job.error is not None:
+                if job.state == 'error':
                     return "error"
                 ready = True
                 for data in job.outputs:
                     meta = self.rg.get_hda(job.history, data['id'])
                     if meta['state'] == 'error':
-                        job.state = 'error'
+                        job.set_error(meta['misc_info'])
                     if meta['state'] != 'ok':
                         ready = False
                 if ready:

@@ -36,6 +36,9 @@ class Service(Thread):
         self.exception = None
         self.exception_str = None
 
+    def get_config(self):
+        raise NotImplementedException()
+
     def submit(self, task):
         with self.queue_lock:
             j = self.job_count
@@ -110,13 +113,28 @@ class Service(Thread):
         raise NotImplementedException()
 
 
+class ServiceConfig:
+    def __init__(self, **kwds):
+        self.config = kwds
+
+    def store(self, handle):
+        handle.write(json.dumps(self.config))
+
+    def load(self, handle):
+        line = handle.readline()
+        self.config = json.loads(line)
+
+    def create(self):
+        return from_dict(self.config)
+
+
 class TaskJob:
     def __init__(self, job_id, task):
         self.task = task
         #self.service_name = self.task['service']
         self.history = None
         self.outputs = []
-        self.error = None
+        self.error_msg = None
         self.job_id = job_id
         self.state = "queued"
 
@@ -127,14 +145,13 @@ class TaskJob:
         pass
 
     def set_error(self, msg="Failure"):
-        self.error = msg
+        self.error_msg = msg
+        self.state = 'error'
 
     def get_inputs(self):
         return self.task.get_inputs()
 
     def get_status(self):
-        if self.error is not None:
-            return "error"
         return self.state
 
     """
@@ -146,3 +163,10 @@ class TaskJob:
     """
 
 from galaxy import GalaxyService
+
+__mapping__ = {
+    'Galaxy' : GalaxyService
+}
+
+def from_dict(data):
+    return __mapping__[data['service_type']].from_dict(data)

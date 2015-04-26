@@ -6,7 +6,7 @@ from glob import glob
 from urlparse import urlparse, ParseResult
 from nebula.objectstore import ObjectStore, DiskObjectStore, DiskObjectStoreConfig
 
-def init_docstore_url(url):
+def from_url(url):
     p = urlparse(url)
     if p.scheme == '':
         return FileDocStore(file_path=url)
