@@ -19,4 +19,4 @@ class DocStoreTest(unittest.TestCase):
             shutil.rmtree("./test_tmp/docstore")
 
     def testDocStore(self):
-        nebula.docstore.init_docstore_url("./test_tmp/docstore")
+        nebula.docstore.from_url("./test_tmp/docstore")

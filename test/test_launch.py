@@ -31,8 +31,8 @@ class TestLaunch(unittest.TestCase):
         store = FileDocStore("./test_tmp/docstore")
         service = nebula.service.GalaxyService(store)
         service_dict = service.to_dict()
-        self.assertIn('service_name', service_dict)
-        self.assertEqual('galaxy', service_dict['service_name'])
+        self.assertIn('service_type', service_dict)
+        self.assertEqual('Galaxy', service_dict['service_type'])
         print service_dict
 
 
