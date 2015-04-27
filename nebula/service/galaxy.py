@@ -159,25 +159,30 @@ class GalaxyService(Service):
             return "waiting"
         return s
 
-    def store_data(self, data, object_store):
-        meta = self.rg.get_hda(data['history'], data['id'])
+    def store_data(self, object, doc_store):
+        meta = self.rg.get_hda(object['history'], object['id'])
         meta['id'] = meta['uuid'] #use the glocal id
         hda = HDATarget(meta)
-        object_store.create(hda)
-        path = object_store.get_filename(hda)
+        doc_store.create(hda)
+        path = doc_store.get_filename(hda)
         self.rg.download(meta['download_url'], path)
-        object_store.update_from_file(hda)
+        doc_store.update_from_file(hda)
 
-    def store_meta(self, data, doc_store):
-        meta = self.rg.get_hda(data['history'], data['id'])
-        prov = self.rg.get_provenance(data['history'], data['id'])
+    def store_meta(self, object, doc_store):
+        meta = self.get_meta(a)
+        doc_store.put(meta['uuid'], meta)
+
+
+    def store_meta(self, object, doc_store):
+        meta = self.rg.get_hda(object['history'], object['id'])
+        prov = self.rg.get_provenance(object['history'], object['id'])
         meta['provenance'] = prov
         meta['job'] = self.rg.get_job(prov['job_id'])
         doc_store.put(meta['uuid'], meta)
 
-    def get_meta(self, data):
-        meta = self.rg.get_hda(data['history'], data['id'])
-        prov = self.rg.get_provenance(data['history'], data['id'])
+    def get_meta(self, object):
+        meta = self.rg.get_hda(object['history'], object['id'])
+        prov = self.rg.get_provenance(object['history'], object['id'])
         meta['provenance'] = prov
         meta['job'] = self.rg.get_job(prov['job_id'])
         return meta

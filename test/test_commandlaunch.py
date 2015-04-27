@@ -26,7 +26,7 @@ class TestLaunch(unittest.TestCase):
     def tearDown(self):
         if os.path.exists(get_abspath("../test_tmp/docstore")):
             shutil.rmtree(get_abspath("../test_tmp/docstore"))
-
+        
     def testNebulaLaunch(self):
         input = {
             "input_file_1" :

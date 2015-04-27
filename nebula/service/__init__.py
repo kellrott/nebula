@@ -76,6 +76,7 @@ class Service(Thread):
 
     def wait(self, items):
         sleep_time = 1
+        collected = []
         while True:
             waiting = False
             #print "Waiting", items
@@ -85,6 +86,13 @@ class Service(Thread):
                 logging.info("Status check %s %s" % (status, i))
                 if status not in ['ok', 'error', 'unknown']:
                     waiting = True
+                if status in ['ok'] and i.job_id not in collected:
+                    logging.info("Collecting outputs of %s" % (i.job_id))
+                    for o in i.get_outputs():
+                        self.store_meta(o, self.docstore)
+                        self.store_data(o, self.docstore)
+                    collected.append(i.job_id)
+
             if not waiting:
                 break
             if self.in_error():
@@ -150,6 +158,9 @@ class TaskJob:
 
     def get_inputs(self):
         return self.task.get_inputs()
+
+    def get_outputs(self):
+        return self.outputs
 
     def get_status(self):
         return self.state
