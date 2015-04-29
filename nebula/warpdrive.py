@@ -465,9 +465,8 @@ class RemoteGalaxy(object):
         req = requests.get(c_url, params=params)
         return req.json()
 
-    def post(self, path, payload):
+    def post(self, path, payload, params={}):
         c_url = self.url + path
-        params = {}
         params['key'] = self.api_key
         logging.debug("POSTING: %s %s" % (c_url, json.dumps(payload)))
         req = requests.post(c_url, data=json.dumps(payload), params=params, headers = {'Content-Type': 'application/json'} )
@@ -538,6 +537,9 @@ class RemoteGalaxy(object):
     def get_hda(self, history, hda):
         return self.get("/api/histories/%s/contents/%s" % (history, hda))
 
+    def get_dataset(self, id, src='hda' ):
+        return self.get("/api/datasets/%s?hda_ldda=%s" % (id, src))
+
     def download_hda(self, history, hda, dst):
         meta = self.get_hda(history, hda)
         self.download(meta['download_url'], dst)
@@ -561,7 +563,7 @@ class RemoteGalaxy(object):
         return self.get("/api/workflows/%s" % (wid))
 
     def call_workflow(self, request):
-        return self.post("/api/workflows", request )
+        return self.post("/api/workflows", request, params={'step_details' : True} )
 
     def get_job(self, jid):
         return self.get("/api/jobs/%s" % (jid), {'full' : True} )

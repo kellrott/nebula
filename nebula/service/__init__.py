@@ -88,9 +88,9 @@ class Service(Thread):
                     waiting = True
                 if status in ['ok'] and i.job_id not in collected:
                     logging.info("Collecting outputs of %s" % (i.job_id))
-                    for o in i.get_outputs():
-                        self.store_meta(o, self.docstore)
-                        self.store_data(o, self.docstore)
+                    for name, dataset in i.get_outputs().items():
+                        self.store_meta(dataset, self.docstore)
+                        self.store_data(dataset, self.docstore)
                     collected.append(i.job_id)
 
             if not waiting:
@@ -141,7 +141,7 @@ class TaskJob:
         self.task = task
         #self.service_name = self.task['service']
         self.history = None
-        self.outputs = []
+        self.outputs = {}
         self.error_msg = None
         self.job_id = job_id
         self.state = "queued"

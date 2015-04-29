@@ -1,6 +1,7 @@
 
 import logging
 import time
+import json
 
 import nebula.docstore
 from nebula.service import Service, ServiceConfig
@@ -127,13 +128,19 @@ class GalaxyService(Service):
                             'id' : v.uuid
                         }
                     invc = self.rg.call_workflow(request=job.task.get_workflow_request())
-                    print "Called Workflow", invc
+                    print "Called Workflow", json.dumps(invc)
                     if 'err_msg' in invc:
                         logging.error("Workflow invocation failed")
                         job.set_error("Workflow Invocation Failed")
                     else:
                         job.history = invc['history']
-                        job.outputs = list( {"id" : i, "history" : invc['history'], "src" : "hda"} for i in invc['outputs'] )
+                        job.instance_id = invc['uuid']
+                        job.outputs = {}
+                        for step in invc['steps']:
+                            if 'outputs' in step:
+                                step_name = step['workflow_step_label'] if step['workflow_step_label'] is not None else str(step['workflow_step_uuid'])
+                                for ok, ov in step['outputs'].items():
+                                    job.outputs[ "%s|%s" % (step_name, ok) ] = ov
         down_config = {}
         #if "work_dir" in self.config:
         #    down_config['work_dir'] = self.config['work_dir']
@@ -147,7 +154,7 @@ class GalaxyService(Service):
                 if job.state == 'error':
                     return "error"
                 ready = True
-                for data in job.outputs:
+                for outputname, data in job.outputs.items():
                     meta = self.rg.get_hda(job.history, data['id'])
                     if meta['state'] == 'error':
                         job.set_error(meta['misc_info'])
@@ -160,7 +167,7 @@ class GalaxyService(Service):
         return s
 
     def store_data(self, object, doc_store):
-        meta = self.rg.get_hda(object['history'], object['id'])
+        meta = self.rg.get_dataset(object['id'], object['src'])
         meta['id'] = meta['uuid'] #use the glocal id
         hda = HDATarget(meta)
         doc_store.create(hda)
@@ -169,20 +176,12 @@ class GalaxyService(Service):
         doc_store.update_from_file(hda)
 
     def store_meta(self, object, doc_store):
-        meta = self.get_meta(a)
-        doc_store.put(meta['uuid'], meta)
-
-
-    def store_meta(self, object, doc_store):
-        meta = self.rg.get_hda(object['history'], object['id'])
-        prov = self.rg.get_provenance(object['history'], object['id'])
-        meta['provenance'] = prov
-        meta['job'] = self.rg.get_job(prov['job_id'])
+        meta = self.get_meta(object)
         doc_store.put(meta['uuid'], meta)
 
     def get_meta(self, object):
-        meta = self.rg.get_hda(object['history'], object['id'])
-        prov = self.rg.get_provenance(object['history'], object['id'])
+        meta = self.rg.get_dataset(object['id'], object['src'])
+        prov = self.rg.get_provenance(meta['history_id'], object['id'])
         meta['provenance'] = prov
         meta['job'] = self.rg.get_job(prov['job_id'])
         return meta

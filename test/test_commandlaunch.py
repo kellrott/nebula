@@ -53,7 +53,7 @@ class TestLaunch(unittest.TestCase):
         service = GalaxyService(
             docstore=doc,
             name="nosetest_galaxy",
-            galaxy="bgruening/galaxy-stable",
+            galaxy="bgruening/galaxy-stable:dev",
             port=20022
         )
 
