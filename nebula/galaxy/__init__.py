@@ -39,11 +39,12 @@ def dom_scan_iter(node, stack, prefix):
 
 class WorkflowStep(object):
     def __init__(self, workflow, desc):
-        self.step_id = desc["id"]
-        self.uuid = desc['uuid']
         self.workflow = workflow
         self.desc = desc
+        self.step_id = desc["id"]
+        self.uuid = desc['uuid']
         self.type = self.desc['type']
+        self.label = self.desc['label'] if self.desc['label'] is not None else str(self.desc['uuid'])
         self.tool_id = self.desc.get('tool_id', None)
         state = json.loads(self.desc.get('tool_state', "null"))
         self.tool_state = {}
@@ -113,6 +114,33 @@ class GalaxyWorkflow(object):
     def steps(self):
         for s in self.desc['steps'].values():
             yield WorkflowStep(self, s)
+
+    def get_inputs(self):
+        inputs = []
+        for step in self.steps():
+            if step.type == 'data_input':
+                inputs.append(step.label)
+        return inputs
+
+    def get_outputs(self, all=False):
+        outputs = []
+        hidden = self.get_hidden_outputs()
+        for step in self.steps():
+            if step.type == 'tool':
+                for o in step.outputs:
+                    output_name = "%s|%s" % (step.label, o['name'])
+                    if all or output_name not in hidden:
+                        outputs.append( output_name )
+        return outputs
+
+    def get_hidden_outputs(self):
+        outputs = []
+        for step in self.steps():
+            if step.type == 'tool' and 'post_job_actions' in step.desc:
+                for pja in step.desc['post_job_actions'].values():
+                    if pja['action_type'] == 'HideDatasetAction':
+                        outputs.append( "%s|%s" % (step.label, pja['output_name']) )
+        return outputs
 
     def validate_input(self, data, toolbox):
         for step in self.steps():

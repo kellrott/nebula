@@ -137,11 +137,14 @@ class GalaxyService(Service):
                         job.history = invc['history']
                         job.instance_id = invc['uuid']
                         job.outputs = {}
+                        wf_outputs = wf.get_outputs()
                         for step in invc['steps']:
                             if 'outputs' in step:
                                 step_name = step['workflow_step_label'] if step['workflow_step_label'] is not None else str(step['workflow_step_uuid'])
                                 for ok, ov in step['outputs'].items():
-                                    job.outputs[ "%s|%s" % (step_name, ok) ] = ov
+                                    output_name = "%s|%s" % (step_name, ok)
+                                    if output_name in wf_outputs: #filter out produced items that are not part of the final output
+                                        job.outputs[ output_name ] = ov
         down_config = {}
         #if "work_dir" in self.config:
         #    down_config['work_dir'] = self.config['work_dir']

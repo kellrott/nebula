@@ -9,6 +9,9 @@ from nebula.target import Target
 import json
 import shutil
 
+def get_abspath(path):
+    return os.path.join(os.path.dirname(__file__), path)
+
 class TestWorkflow(unittest.TestCase):
 
     def setUp(self):
@@ -23,7 +26,7 @@ class TestWorkflow(unittest.TestCase):
 
         input_file_1 = Target(uuid="c39ded10-6073-11e4-9803-0800200c9a66")
         input_file_2 = Target(uuid="26fd12a2-9096-4af2-a989-9e2f1cb692fe")
-        workflow = GalaxyWorkflow(ga_file="examples/simple_galaxy/SimpleWorkflow.ga")
+        workflow = GalaxyWorkflow(ga_file=get_abspath("../examples/simple_galaxy/SimpleWorkflow.ga"))
         task = nebula.tasks.GalaxyWorkflowTask("workflow_test",
             workflow,
             inputs={
@@ -53,7 +56,7 @@ class TestWorkflow(unittest.TestCase):
 
         input_file_1 = Target(uuid="c39ded10-6073-11e4-9803-0800200c9a66")
         input_file_2 = Target(uuid="26fd12a2-9096-4af2-a989-9e2f1cb692fe")
-        workflow = GalaxyWorkflow(ga_file="examples/simple_galaxy/SimpleWorkflow.ga")
+        workflow = GalaxyWorkflow(ga_file=get_abspath("../examples/simple_galaxy/SimpleWorkflow.ga"))
         task_ok = nebula.tasks.GalaxyWorkflowTask("workflow_ok",
             workflow,
             inputs={
@@ -77,3 +80,19 @@ class TestWorkflow(unittest.TestCase):
 
         self.assertTrue(task_ok.is_valid())
         self.assertFalse(task_missing.is_valid())
+
+
+    def testWorkflowOutputs(self):
+        workflow = GalaxyWorkflow(ga_file=get_abspath("../examples/simple_galaxy/SimpleWorkflow.ga"))
+        inputs = workflow.get_inputs()
+        self.assertIn('input_file_1', inputs)
+        self.assertIn('input_file_2', inputs)
+
+        outputs = workflow.get_outputs()
+        print outputs
+
+        all_outputs = workflow.get_outputs(all=True)
+        print all_outputs
+
+        hidden_outputs = workflow.get_hidden_outputs()
+        print hidden_outputs
