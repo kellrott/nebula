@@ -13,6 +13,7 @@ from nebula.tasks import TaskGroup
 from nebula.docstore import FileDocStore
 from nebula.docstore.util import sync_doc_dir
 from nebula.service import GalaxyService, TaskJob
+from nebula.galaxy import GalaxyWorkflow
 
 def get_abspath(path):
     return os.path.join(os.path.dirname(__file__), path)
@@ -26,7 +27,7 @@ class TestLaunch(unittest.TestCase):
     def tearDown(self):
         if os.path.exists(get_abspath("../test_tmp/docstore")):
             shutil.rmtree(get_abspath("../test_tmp/docstore"))
-        
+
     def testNebulaLaunch(self):
         input = {
             "input_file_1" :
@@ -44,9 +45,10 @@ class TestLaunch(unittest.TestCase):
             uuid_set=["c39ded10-6073-11e4-9803-0800200c9a66", "26fd12a2-9096-4af2-a989-9e2f1cb692fe"]
         )
         logging.info("Creating Task")
+        workflow = GalaxyWorkflow(ga_file=get_abspath("../examples/simple_galaxy/SimpleWorkflow.ga"))
         task = nebula.tasks.GalaxyWorkflowTask(
             "test_workflow",
-            get_abspath("../examples/simple_galaxy/SimpleWorkflow.ga"),
+            workflow,
             inputs=input
         )
 

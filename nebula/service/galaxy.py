@@ -5,9 +5,9 @@ import json
 
 import nebula.docstore
 from nebula.service import Service, ServiceConfig
-from nebula.galaxy import Workflow
 from nebula.target import Target
 from nebula.warpdrive import run_up, run_add, run_down
+from nebula.galaxy import GalaxyWorkflow
 
 class HDATarget(Target):
     def __init__(self, meta):
@@ -119,8 +119,9 @@ class GalaxyService(Service):
                             break
                         time.sleep(2)
 
-                    self.rg.add_workflow(job.task.workflow_data)
-                    wf = Workflow(job.task.workflow_data)
+                    workflow_data = job.task.to_dict()['workflow']
+                    self.rg.add_workflow(workflow_data)
+                    wf = GalaxyWorkflow(workflow_data)
                     inputs = {}
                     for k, v in job.get_inputs().items():
                         inputs[k] = {

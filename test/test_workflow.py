@@ -4,6 +4,7 @@ import unittest
 import time
 import os
 import nebula.tasks
+from nebula.galaxy import GalaxyWorkflow
 from nebula.target import Target
 import json
 import shutil
@@ -22,8 +23,9 @@ class TestWorkflow(unittest.TestCase):
 
         input_file_1 = Target(uuid="c39ded10-6073-11e4-9803-0800200c9a66")
         input_file_2 = Target(uuid="26fd12a2-9096-4af2-a989-9e2f1cb692fe")
+        workflow = GalaxyWorkflow(ga_file="examples/simple_galaxy/SimpleWorkflow.ga")
         task = nebula.tasks.GalaxyWorkflowTask("workflow_test",
-            "examples/simple_galaxy/SimpleWorkflow.ga",
+            workflow,
             inputs={
                 'input_file_1' : input_file_1,
                 'input_file_2' : input_file_2,
@@ -51,8 +53,9 @@ class TestWorkflow(unittest.TestCase):
 
         input_file_1 = Target(uuid="c39ded10-6073-11e4-9803-0800200c9a66")
         input_file_2 = Target(uuid="26fd12a2-9096-4af2-a989-9e2f1cb692fe")
+        workflow = GalaxyWorkflow(ga_file="examples/simple_galaxy/SimpleWorkflow.ga")
         task_ok = nebula.tasks.GalaxyWorkflowTask("workflow_ok",
-            "examples/simple_galaxy/SimpleWorkflow.ga",
+            workflow,
             inputs={
                 'input_file_1' : input_file_1,
                 'input_file_2' : input_file_2,
@@ -63,7 +66,7 @@ class TestWorkflow(unittest.TestCase):
         )
 
         task_missing = nebula.tasks.GalaxyWorkflowTask("workflow_broken",
-            "examples/simple_galaxy/SimpleWorkflow.ga",
+            workflow,
             inputs={
                 'input_file_1' : input_file_1,
                 "tail_select" : {

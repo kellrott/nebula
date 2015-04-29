@@ -10,6 +10,7 @@ from nebula.docstore import FileDocStore
 from nebula.docstore.util import sync_doc_dir
 import nebula.tasks
 from nebula.service import GalaxyService, TaskJob
+from nebula.galaxy import GalaxyWorkflow
 import logging
 import json
 
@@ -46,9 +47,9 @@ class TestRunWorkflow(unittest.TestCase):
             uuid_set=["c39ded10-6073-11e4-9803-0800200c9a66", "26fd12a2-9096-4af2-a989-9e2f1cb692fe"]
         )
         logging.info("Creating Task")
+        workflow = GalaxyWorkflow(ga_file="examples/simple_galaxy/SimpleWorkflow.ga")
         task = nebula.tasks.GalaxyWorkflowTask(
-            "test_workflow",
-            "examples/simple_galaxy/SimpleWorkflow.ga",
+            "test_workflow", workflow,
             inputs=input
         )
 
@@ -83,7 +84,7 @@ class TestRunWorkflow(unittest.TestCase):
 
         bad_task = nebula.tasks.GalaxyWorkflowTask(
             "test_workflow_bad",
-            "examples/simple_galaxy/SimpleWorkflow.ga",
+            workflow,
             inputs=bad_input
         )
         job = service.submit(bad_task)

@@ -9,7 +9,7 @@ from nebula.target import Target, TargetFuture
 
 from nebula.exceptions import CompileException
 from nebula.galaxy.yaml_to_workflow import yaml_to_workflow
-from nebula.galaxy import Workflow
+from nebula.galaxy import GalaxyWorkflow
 
 class GalaxyTargetFuture(TargetFuture):
 
@@ -19,10 +19,11 @@ class GalaxyTargetFuture(TargetFuture):
         super(GalaxyTargetFuture, self).__init__(task_id)
 
 class GalaxyWorkflowTask(Task):
-    def __init__(self, task_id, workflow_file=None, yaml=None, workflow=None, inputs=None):
+    def __init__(self, task_id, workflow, inputs=None):
 
         super(GalaxyWorkflowTask,self).__init__(task_id) #, inputs=inputs, **kwds)
 
+        """
         if workflow_file is not None:
             with open(workflow_file) as handle:
                 self.workflow_data = json.loads(handle.read())
@@ -34,7 +35,10 @@ class GalaxyWorkflowTask(Task):
 
         if self.workflow_data is None:
             raise Exception("Workflow not defined")
-
+        """
+        if not isinstance(workflow, GalaxyWorkflow):
+            raise Exception("Need galaxy workflow")
+        self.workflow = workflow
         self.request = inputs
 
         """
@@ -66,8 +70,9 @@ class GalaxyWorkflowTask(Task):
     def is_valid(self):
         valid = True
 
+        workflow_data = self.workflow.to_dict()
         outputs = {}
-        for step in self.workflow_data['steps'].values():
+        for step in workflow_data['steps'].values():
             if 'post_job_actions' in step and len(step['post_job_actions']):
                 for act in step['post_job_actions'].values():
                     if act['action_type'] == 'RenameDatasetAction':
@@ -75,7 +80,7 @@ class GalaxyWorkflowTask(Task):
                         old_name = act["output_name"]
                         outputs[new_name] = GalaxyTargetFuture(task_id=self.task_id, step_id=step['id'], output_name=old_name)
 
-        for step in self.workflow_data['steps'].values():
+        for step in workflow_data['steps'].values():
             if step['type'] == 'data_input':
                 name = step['inputs'][0]['name']
                 if name not in self.request:
@@ -91,7 +96,7 @@ class GalaxyWorkflowTask(Task):
                 request[k] = Target(uuid=v['uuid'])
             else:
                 request[k] = v
-        return GalaxyWorkflowTask( data['task_id'], workflow=data['workflow'], inputs=request )
+        return GalaxyWorkflowTask( data['task_id'], workflow=GalaxyWorkflow(data['workflow']), inputs=request )
 
     def get_inputs(self):
         out = {}
@@ -111,7 +116,7 @@ class GalaxyWorkflowTask(Task):
             'task_type' : 'GalaxyWorkflow',
             'task_id' : self.task_id,
             'service' : 'galaxy',
-            'workflow' : self.workflow_data,
+            'workflow' : self.workflow.to_dict(),
             'request' : request,
             #'outputs' : self.get_output_data(),
         }
@@ -122,23 +127,24 @@ class GalaxyWorkflowTask(Task):
         dsmap = {}
         parameters = {}
         out = {}
+        workflow_data = self.workflow.to_dict()
         for k, v in self.request.items():
             if isinstance(v, Target):
-                if k in self.workflow_data['steps']:
+                if k in workflow_data['steps']:
                     out[k] = {'src':'uuid', 'id' : v.uuid}
                 else:
                     found = False
-                    for step_id, step in self.workflow_data['steps'].items():
+                    for step_id, step in workflow_data['steps'].items():
                         label = step['uuid']
                         if step['type'] == 'data_input':
                             if step['inputs'][0]['name'] == k:
                                 dsmap[label] = {'src':'uuid', 'id' : v.uuid}
             else:
-                if k in self.workflow_data['steps']:
+                if k in workflow_data['steps']:
                     out[k] == v
                 else:
                     found = False
-                    for step_id, step in self.workflow_data['steps'].items():
+                    for step_id, step in workflow_data['steps'].items():
                         label = step['uuid']
                         if step['type'] == 'tool':
                             if step['annotation'] == k:
@@ -177,7 +183,7 @@ class GalaxyWorkflowTask(Task):
                     parameters[step_name]["__POST_JOB_ACTIONS__"] = pja_map
         """
 
-        out['workflow_id'] = self.workflow_data['uuid']
+        out['workflow_id'] = workflow_data['uuid']
         out['inputs'] = dsmap
         out['parameters'] = parameters
         out['inputs_by'] = "step_uuid"

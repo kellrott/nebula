@@ -99,9 +99,16 @@ class ValidationError(Exception):
     def __init__(self, message):
         super(ValidationError, self).__init__(message)
 
-class Workflow(object):
-    def __init__(self, desc):
-        self.desc = desc
+class GalaxyWorkflow(object):
+    def __init__(self, workflow=None, ga_file=None):
+        if ga_file is not None:
+            with open(ga_file) as handle:
+                self.desc = json.loads(handle.read())
+        else:
+            self.desc = workflow
+
+    def to_dict(self):
+        return self.desc
 
     def steps(self):
         for s in self.desc['steps'].values():
