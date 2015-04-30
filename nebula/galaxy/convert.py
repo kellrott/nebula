@@ -1,13 +1,8 @@
-import sys
 
-import yaml
 import json
 import uuid
 
-try:
-    from collections import OrderedDict
-except ImportError:
-    from galaxy.util.odict import odict as OrderedDict
+from collections import OrderedDict
 
 
 STEP_TYPE_ALIASES = {
@@ -15,14 +10,77 @@ STEP_TYPE_ALIASES = {
     'input_collection': 'data_collection_input',
 }
 
+def uniquify(name, taken):
+    if name not in taken:
+        return name
 
-def yaml_to_workflow(has_yaml):
-    as_python = yaml.load(has_yaml)
+    while True:
+        res = re.search(r'^(.*)_(\d+)$', name)
+        if res:
+            name = "%s_%s" % (res.group(1), int(res.group(2)) + 1)
+        else:
+            name = "%s_1" % (name)
+        if name not in taken:
+            return name
 
-    if isinstance(as_python, list):
-        as_python = {"steps": as_python}
+def workflow_to_simple(workflow):
+    """
+    convert a galaxy formatted workflow to a 'simple'
+    format that is more human friendly to read
+    """
 
-    __ensure_defaults(as_python, {
+    steps = workflow['steps']
+
+    step_map = {}
+    steps_out = []
+    for step_id, step in steps.items():
+        label = step.get("label", "step_%s" % (step_id))
+        label = uniquify(label, step_map)
+        step_map[step_id] = label
+
+    for step_id, step in steps.items():
+        new_step = {
+            'label' : step_map[step_id]
+        }
+        if step['type'] == 'data_input':
+            new_step['type'] = 'input'
+        if step['type'] == 'pause':
+            new_step['type'] = 'pause'
+        if step['type'] == 'tool':
+            new_step['tool_id'] = step['tool_id']
+            state = json.loads(step['tool_state'])
+            new_state = {}
+            for k,v in state.items():
+                if k not in ['__page__', '__rerun_remap_job_id__']:
+                    new_v = json.loads(v)
+                    if new_v is not None:
+                        new_state[k] = new_v
+            new_step['state'] = new_state
+            connections = {}
+            for connection_name, connection in step['input_connections'].items():
+                connections[connection_name] = step_map[str(connection['id'])] + "#" + connection['output_name']
+            if len(connections):
+                new_step['connect'] = connections
+        steps_out.append(new_step)
+
+    out = {}
+    out['name'] = workflow['name']
+    out['uuid'] = workflow.get('uuid', str(uuid.uuid4()))
+    out['steps'] = steps_out
+
+    return out
+
+
+def simple_to_workflow(simple_workflow):
+    """
+    Convert a workflow stored in the 'simple' human friendly
+    format to a galaxy compatible structure
+    """
+
+    if isinstance(simple_workflow, list):
+        simple_workflow = {"steps": simple_workflow}
+
+    __ensure_defaults(simple_workflow, {
         "a_galaxy_workflow": "true",
         "format-version": "0.1",
         "annotation": "",
@@ -30,7 +88,7 @@ def yaml_to_workflow(has_yaml):
         "uuid": str(uuid.uuid4()),
     })
 
-    steps = as_python["steps"]
+    steps = simple_workflow["steps"]
 
     conversion_context = ConversionContext()
     if isinstance(steps, list):
@@ -51,7 +109,7 @@ def yaml_to_workflow(has_yaml):
                     "top": 10 * i
                 }
 
-        as_python["steps"] = steps_as_dict
+        simple_workflow["steps"] = steps_as_dict
         steps = steps_as_dict
 
     for i, step in steps.iteritems():
@@ -62,7 +120,7 @@ def yaml_to_workflow(has_yaml):
         step["type"] = step_type
         eval("transform_%s" % step_type)(conversion_context, step)
 
-    return as_python
+    return simple_workflow
 
 
 def transform_data_input(context, step):
@@ -103,6 +161,35 @@ def transform_input(context, step, default_name):
     __populate_tool_state(step, tool_state)
 
 
+def transform_pause(context, step, default_name="Pause for dataset review"):
+    default_name = step.get("label", default_name)
+    __ensure_defaults( step, {
+        "annotation": "",
+    })
+
+    __ensure_inputs_connections(step)
+
+    if not "inputs" in step:
+        step["inputs"] = [{}]
+
+    step_inputs = step["inputs"][0]
+    if "name" in step_inputs:
+        name = step_inputs["name"]
+    else:
+        name = default_name
+
+    __ensure_defaults( step_inputs, {
+        "name": name,
+    })
+    tool_state = {
+        "name": name
+    }
+
+    connect = __init_connect_dict(step)
+    __populate_input_connections(context, step, connect)
+    __populate_tool_state(step, tool_state)
+
+
 def transform_tool(context, step):
     if "tool_id" not in step:
         raise Exception("Tool steps must define a tool_id.")
@@ -111,7 +198,6 @@ def transform_tool(context, step):
         "annotation": "",
         "post_job_actions": {},
     } )
-    __ensure_inputs_connections(step)
     post_job_actions = step["post_job_actions"]
 
     tool_state = {
@@ -119,11 +205,7 @@ def transform_tool(context, step):
         "__page__": 0,
     }
 
-    if "connect" not in step:
-        step["connect"] = {}
-
-    connect = step["connect"]
-    del step["connect"]
+    connect = __init_connect_dict(step)
 
     def append_link(key, value):
         if key not in connect:
@@ -163,34 +245,8 @@ def transform_tool(context, step):
             tool_state[key] = json.dumps(value)
         del step["state"]
 
-    for key, values in connect.iteritems():
-        input_connection_value = []
-        if not isinstance(values, list):
-            values = [ values ]
-        for value in values:
-            if not isinstance(value, dict):
-                value_parts = str(value).split("#")
-                if len(value_parts) == 1:
-                    value_parts.append("output")
-                id = value_parts[0]
-                if id in context.labels:
-                    id = context.labels[id]
-                value = {"id": int(id), "output_name": value_parts[1]}
-            input_connection_value.append(value)
-        # TODO: this should be a list
-        step["input_connections"][key] = input_connection_value[0]
-
-    if "runtime_values" in step:
-        if 'inputs' not in step:
-            step['inputs'] = []
-        for name in step['runtime_values']:
-            step['inputs'].append({
-                "description": "runtime parameter for tool %s" % (step['tool_id']),
-                "name": name
-            })
-            tool_state[name] = json.dumps({"__class__": "RuntimeValue"})
-        del step['runtime_values']
-
+    # Fill in input connections
+    __populate_input_connections(context, step, connect)
 
     __populate_tool_state(step, tool_state)
 
@@ -245,6 +301,40 @@ def __join_prefix(prefix, key):
     return new_key
 
 
+def __init_connect_dict(step):
+    if "connect" not in step:
+        step["connect"] = {}
+
+    connect = step["connect"]
+    del step["connect"]
+    return connect
+
+
+def __populate_input_connections(context, step, connect):
+    __ensure_inputs_connections(step)
+    input_connections = step["input_connections"]
+
+    for key, values in connect.iteritems():
+        input_connection_value = []
+        if not isinstance(values, list):
+            values = [ values ]
+        for value in values:
+            if not isinstance(value, dict):
+                if key == "$step":
+                    value += "#__NO_INPUT_OUTPUT_NAME__"
+                value_parts = str(value).split("#")
+                if len(value_parts) == 1:
+                    value_parts.append("output")
+                id = value_parts[0]
+                if id in context.labels:
+                    id = context.labels[id]
+                value = {"id": int(id), "output_name": value_parts[1]}
+            input_connection_value.append(value)
+        if key == "$step":
+            key = "__NO_INPUT_OUTPUT_NAME__"
+        input_connections[key] = input_connection_value
+
+
 def __ensure_inputs_connections(step):
     if "input_connections" not in step:
         step["input_connections"] = {}
@@ -258,11 +348,3 @@ def __ensure_defaults(in_dict, defaults):
 
 def __populate_tool_state(step, tool_state):
     step["tool_state"] = json.dumps(tool_state)
-
-
-def main(argv):
-    with open(argv[1]) as handle:
-        print json.dumps(yaml_to_workflow(handle.read()), indent=4)
-
-if __name__ == "__main__":
-    main(sys.argv)
