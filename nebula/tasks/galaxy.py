@@ -19,7 +19,7 @@ class GalaxyTargetFuture(TargetFuture):
         super(GalaxyTargetFuture, self).__init__(task_id)
 
 class GalaxyWorkflowTask(Task):
-    def __init__(self, task_id, workflow, inputs=None):
+    def __init__(self, task_id, workflow, inputs=None, parameters=None):
 
         super(GalaxyWorkflowTask,self).__init__(task_id) #, inputs=inputs, **kwds)
 
@@ -39,8 +39,8 @@ class GalaxyWorkflowTask(Task):
         if not isinstance(workflow, GalaxyWorkflow):
             raise Exception("Need galaxy workflow")
         self.workflow = workflow
-        self.request = inputs
-
+        self.inputs = inputs
+        self.parameters = parameters
         """
         outputs = {}
         for step in self.data['steps'].values():
@@ -83,7 +83,7 @@ class GalaxyWorkflowTask(Task):
         for step in workflow_data['steps'].values():
             if step['type'] == 'data_input':
                 name = step['inputs'][0]['name']
-                if name not in self.request:
+                if name not in self.inputs:
                     #raise CompileException("Missing input: %s" % (name))
                     valid = False
         return valid
@@ -91,7 +91,7 @@ class GalaxyWorkflowTask(Task):
     @staticmethod
     def from_dict(data):
         request = {}
-        for k,v in data['request'].items():
+        for k,v in data['inputs'].items():
             if isinstance(v,dict) and 'uuid' in v:
                 request[k] = Target(uuid=v['uuid'])
             else:
@@ -100,24 +100,25 @@ class GalaxyWorkflowTask(Task):
 
     def get_inputs(self):
         out = {}
-        for k, v in self.request.items():
+        for k, v in self.inputs.items():
             if isinstance(v, Target):
                 out[k] = v
         return out
 
     def to_dict(self):
-        request = {}
-        for k,v in self.request.items():
+        inputs = {}
+        for k,v in self.inputs.items():
             if isinstance(v,Target):
-                request[k] = v.to_dict()
+                inputs[k] = v.to_dict()
             else:
-                request[k] = v
+                inputs[k] = v
         return {
             'task_type' : 'GalaxyWorkflow',
             'task_id' : self.task_id,
             'service' : 'galaxy',
             'workflow' : self.workflow.to_dict(),
-            'request' : request,
+            'inputs' : inputs,
+            'parameters' : self.parameters
             #'outputs' : self.get_output_data(),
         }
 
@@ -128,7 +129,7 @@ class GalaxyWorkflowTask(Task):
         parameters = {}
         out = {}
         workflow_data = self.workflow.to_dict()
-        for k, v in self.request.items():
+        for k, v in self.inputs.items():
             if isinstance(v, Target):
                 if k in workflow_data['steps']:
                     out[k] = {'src':'uuid', 'id' : v.uuid}
@@ -140,15 +141,18 @@ class GalaxyWorkflowTask(Task):
                             if step['inputs'][0]['name'] == k:
                                 dsmap[label] = {'src':'uuid', 'id' : v.uuid}
             else:
-                if k in workflow_data['steps']:
-                    out[k] == v
-                else:
-                    found = False
-                    for step_id, step in workflow_data['steps'].items():
-                        label = step['uuid']
-                        if step['type'] == 'tool':
-                            if step['annotation'] == k:
-                                parameters[label] = v
+                pass
+        if self.parameters is not None:
+            for k,v in self.parameters.items():
+                    if k in workflow_data['steps']:
+                        out[k] == v
+                    else:
+                        found = False
+                        for step_id, step in workflow_data['steps'].items():
+                            label = step['uuid']
+                            if step['type'] == 'tool':
+                                if step['annotation'] == k:
+                                    parameters[label] = v
 
         """
         for k, v in input.get("parameters", {}).items():
@@ -188,8 +192,3 @@ class GalaxyWorkflowTask(Task):
         out['parameters'] = parameters
         out['inputs_by'] = "step_uuid"
         return out
-
-        raise Exception("Working on this")
-        return {
-
-        }
