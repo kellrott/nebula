@@ -96,7 +96,10 @@ class GalaxyWorkflowTask(Task):
                 request[k] = Target(uuid=v['uuid'])
             else:
                 request[k] = v
-        return GalaxyWorkflowTask( data['task_id'], workflow=GalaxyWorkflow(data['workflow']), inputs=request )
+        return GalaxyWorkflowTask(
+            data['task_id'], workflow=GalaxyWorkflow(data['workflow']),
+            inputs=request, parameters=data.get('parameters', None)
+        )
 
     def get_inputs(self):
         out = {}
@@ -144,15 +147,15 @@ class GalaxyWorkflowTask(Task):
                 pass
         if self.parameters is not None:
             for k,v in self.parameters.items():
-                    if k in workflow_data['steps']:
-                        out[k] == v
-                    else:
-                        found = False
-                        for step_id, step in workflow_data['steps'].items():
-                            label = step['uuid']
-                            if step['type'] == 'tool':
-                                if step['annotation'] == k:
-                                    parameters[label] = v
+                if k in workflow_data['steps']:
+                    out[k] == v
+                else:
+                    found = False
+                    for step_id, step in workflow_data['steps'].items():
+                        label = step['uuid']
+                        if step['type'] == 'tool':
+                            if step['annotation'] == k:
+                                parameters[label] = v
 
         """
         for k, v in input.get("parameters", {}).items():

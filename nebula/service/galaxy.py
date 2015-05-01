@@ -115,6 +115,7 @@ class GalaxyService(Service):
                             if d['state'] != 'ok':
                                 logging.debug("Data loading: %s" % (d['state']))
                                 done = False
+                                break
                         if done:
                             break
                         time.sleep(2)
@@ -122,13 +123,9 @@ class GalaxyService(Service):
                     workflow_data = job.task.to_dict()['workflow']
                     self.rg.add_workflow(workflow_data)
                     wf = GalaxyWorkflow(workflow_data)
-                    inputs = {}
-                    for k, v in job.get_inputs().items():
-                        inputs[k] = {
-                            'src' : "uuid",
-                            'id' : v.uuid
-                        }
-                    invc = self.rg.call_workflow(request=job.task.get_workflow_request())
+                    request = job.task.get_workflow_request()
+                    print "Calling Workflow", json.dumps(request)
+                    invc = self.rg.call_workflow(request=request)
                     print "Called Workflow", json.dumps(invc)
                     if 'err_msg' in invc:
                         logging.error("Workflow invocation failed")

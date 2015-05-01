@@ -84,15 +84,14 @@ class Service(Thread):
                 status = self.status(i.job_id)
                 #print "Status", i, status, self.is_ready()
                 logging.info("Status check %s %s" % (status, i))
-                if status not in ['ok', 'error', 'unknown']:
-                    waiting = True
                 if status in ['ok'] and i.job_id not in collected:
                     logging.info("Collecting outputs of %s" % (i.job_id))
                     for name, dataset in i.get_outputs().items():
                         self.store_meta(dataset, self.docstore)
                         self.store_data(dataset, self.docstore)
                     collected.append(i.job_id)
-
+                if status not in ['ok', 'error', 'unknown']:
+                    waiting = True
             if not waiting:
                 break
             if self.in_error():

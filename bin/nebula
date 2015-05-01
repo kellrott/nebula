@@ -124,7 +124,9 @@ def action_run(args):
                 sys.stderr.write("---ERROR---\n")
                 raise Exception("Job Failed")
     finally:
-        service.stop()
+        logging.info("Done")
+        if not args.hold:
+            service.stop()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -132,6 +134,7 @@ if __name__ == "__main__":
 
     parser_run = subparsers.add_parser('run')
     parser_run.add_argument("-v", action="store_true", default=False)
+    parser_run.add_argument("--hold", action="store_true", default=False)
     parser_run.add_argument("service_file")
     parser_run.add_argument("task_file")
     parser_run.set_defaults(func=action_run)
