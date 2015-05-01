@@ -21,10 +21,11 @@ except ImportError:
 
 from xml.dom.minidom import parse as parseXML
 from glob import glob
+from socket import gethostname
 
-DEFAULT_CONFIG=os.path.join(os.environ["HOME"], ".warpdrive")
+DEFAULT_CONFIG=os.path.join(os.environ["HOME"], ".warpdrive", gethostname())
 if not os.path.exists(DEFAULT_CONFIG):
-    os.mkdir(DEFAULT_CONFIG)
+    os.makedirs(DEFAULT_CONFIG)
 
 class RequestException(Exception):
     def __init__(self, message):
