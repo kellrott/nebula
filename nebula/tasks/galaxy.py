@@ -19,7 +19,7 @@ class GalaxyTargetFuture(TargetFuture):
         super(GalaxyTargetFuture, self).__init__(task_id)
 
 class GalaxyWorkflowTask(Task):
-    def __init__(self, task_id, workflow, inputs=None, parameters=None):
+    def __init__(self, task_id, workflow, inputs=None, parameters=None, tags=None):
 
         super(GalaxyWorkflowTask,self).__init__(task_id) #, inputs=inputs, **kwds)
 
@@ -41,6 +41,7 @@ class GalaxyWorkflowTask(Task):
         self.workflow = workflow
         self.inputs = inputs
         self.parameters = parameters
+        self.tags = tags
         """
         outputs = {}
         for step in self.data['steps'].values():
@@ -98,7 +99,8 @@ class GalaxyWorkflowTask(Task):
                 request[k] = v
         return GalaxyWorkflowTask(
             data['task_id'], workflow=GalaxyWorkflow(data['workflow']),
-            inputs=request, parameters=data.get('parameters', None)
+            inputs=request, parameters=data.get('parameters', None),
+            tags=data.get('tags', None)
         )
 
     def get_inputs(self):
@@ -121,7 +123,8 @@ class GalaxyWorkflowTask(Task):
             'service' : 'galaxy',
             'workflow' : self.workflow.to_dict(),
             'inputs' : inputs,
-            'parameters' : self.parameters
+            'parameters' : self.parameters,
+            'tags' : self.tags
             #'outputs' : self.get_output_data(),
         }
 
@@ -157,22 +160,9 @@ class GalaxyWorkflowTask(Task):
                             if step['annotation'] == k:
                                 parameters[label] = v
 
-        """
-        for k, v in input.get("parameters", {}).items():
-            if k in self.desc['steps']:
-                out[k] == v
-            else:
-                found = False
-                for step in self.steps():
-                    label = step.uuid
-                    if step.type == 'tool':
-                        if step.annotation == k:
-                            found = True
-                            parameters[label] = v
-
         #TAGS
-        for tag in input.get("tags", []):
-            for step, step_info in self.desc['steps'].items():
+        if self.tags is not None:
+            for step, step_info in workflow_data['steps'].items():
                 step_name = step_info['uuid']
                 if step_info['type'] == "tool":
                     pja_map = {}
@@ -182,13 +172,12 @@ class GalaxyWorkflowTask(Task):
                             "action_type" : "TagDatasetAction",
                             "output_name" : output_name,
                             "action_arguments" : {
-                                "tags" : tag
+                                "tags" : ",".join(self.tags)
                             },
                         }
                     if step_name not in parameters:
                         parameters[step_name] = {} # json.loads(step_info['tool_state'])
                     parameters[step_name]["__POST_JOB_ACTIONS__"] = pja_map
-        """
 
         out['workflow_id'] = workflow_data['uuid']
         out['inputs'] = dsmap
