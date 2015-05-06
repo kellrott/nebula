@@ -38,7 +38,9 @@ class TestWorkflow(unittest.TestCase):
             workflow,
             inputs={
                 'input_file_1' : input_file_1,
-                'input_file_2' : input_file_2,
+                'input_file_2' : input_file_2
+            },
+            parameters = {
                 "tail_select" : {
                     "lineNum" : 3
                 }
@@ -68,7 +70,9 @@ class TestWorkflow(unittest.TestCase):
             workflow,
             inputs={
                 'input_file_1' : input_file_1,
-                'input_file_2' : input_file_2,
+                'input_file_2' : input_file_2
+            },
+            parameters = {
                 "tail_select" : {
                     "lineNum" : 3
                 }

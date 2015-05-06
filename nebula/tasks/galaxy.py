@@ -8,7 +8,6 @@ from nebula.tasks import Task
 from nebula.target import Target, TargetFuture
 
 from nebula.exceptions import CompileException
-from nebula.galaxy.yaml_to_workflow import yaml_to_workflow
 from nebula.galaxy import GalaxyWorkflow
 
 class GalaxyTargetFuture(TargetFuture):
