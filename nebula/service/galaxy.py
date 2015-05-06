@@ -134,6 +134,7 @@ class GalaxyService(Service):
                         job.history = invc['history']
                         job.instance_id = invc['uuid']
                         job.outputs = {}
+                        job.hidden = {}
                         wf_outputs = wf.get_outputs()
                         for step in invc['steps']:
                             if 'outputs' in step:
@@ -142,6 +143,9 @@ class GalaxyService(Service):
                                     output_name = "%s|%s" % (step_name, ok)
                                     if output_name in wf_outputs: #filter out produced items that are not part of the final output
                                         job.outputs[ output_name ] = ov
+                                    else:
+                                        job.hidden[ output_name ] = ov
+
         down_config = {}
         #if "work_dir" in self.config:
         #    down_config['work_dir'] = self.config['work_dir']
@@ -155,7 +159,7 @@ class GalaxyService(Service):
                 if job.state == 'error':
                     return "error"
                 ready = True
-                for outputname, data in job.outputs.items():
+                for outputname, data in job.get_outputs(all=True).items():
                     meta = self.rg.get_hda(job.history, data['id'])
                     if meta['state'] == 'error':
                         job.set_error(meta['misc_info'])

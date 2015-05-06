@@ -86,9 +86,16 @@ class Service(Thread):
                 logging.info("Status check %s %s" % (status, i))
                 if status in ['ok'] and i.job_id not in collected:
                     logging.info("Collecting outputs of %s" % (i.job_id))
-                    for name, dataset in i.get_outputs().items():
+                    for name, dataset in i.get_outputs(all=True).items():
                         self.store_meta(dataset, self.docstore)
+                    #only store data for non-hiddent results
+                    for name, dataset in i.get_outputs().items():
                         self.store_data(dataset, self.docstore)
+                    collected.append(i.job_id)
+                if status in ['error'] and i.job_id not in collected:
+                    logging.info("Collecting error output of %s" % (i.job_id))
+                    for name, dataset in i.get_outputs(all=True).items():
+                        self.store_meta(dataset, self.docstore)
                     collected.append(i.job_id)
                 if status not in ['ok', 'error', 'unknown']:
                     waiting = True
@@ -141,6 +148,7 @@ class TaskJob:
         #self.service_name = self.task['service']
         self.history = None
         self.outputs = {}
+        self.hidden = {}
         self.error_msg = None
         self.job_id = job_id
         self.state = "queued"
@@ -158,8 +166,11 @@ class TaskJob:
     def get_inputs(self):
         return self.task.get_inputs()
 
-    def get_outputs(self):
-        return self.outputs
+    def get_outputs(self, all=False):
+        out = dict(self.outputs)
+        if all:
+            out.update(self.hidden)
+        return out
 
     def get_status(self):
         return self.state

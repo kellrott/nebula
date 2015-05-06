@@ -34,13 +34,15 @@ class TestRunWorkflow(unittest.TestCase):
             "input_file_1" :
                 {"uuid" : "c39ded10-6073-11e4-9803-0800200c9a66"},
             "input_file_2" :
-                {"uuid" : "26fd12a2-9096-4af2-a989-9e2f1cb692fe"},
+                {"uuid" : "26fd12a2-9096-4af2-a989-9e2f1cb692fe"}
+        }
+        parameters = {
             "tail_select" : {
                 "lineNum" : 3
             }
         }
-        bad_input = dict(input)
-        del bad_input['tail_select']
+        bad_parameters = dict(parameters)
+        del bad_parameters['tail_select']
 
         doc = FileDocStore(file_path="./test_tmp/docstore")
         logging.info("Adding files to object store")
@@ -51,7 +53,8 @@ class TestRunWorkflow(unittest.TestCase):
         workflow = GalaxyWorkflow(ga_file="examples/simple_galaxy/SimpleWorkflow.ga")
         task = nebula.tasks.GalaxyWorkflowTask(
             "test_workflow", workflow,
-            inputs=input
+            inputs=input,
+            parameters=parameters
         )
 
         task_data = task.to_dict()
@@ -86,7 +89,8 @@ class TestRunWorkflow(unittest.TestCase):
         bad_task = nebula.tasks.GalaxyWorkflowTask(
             "test_workflow_bad",
             workflow,
-            inputs=bad_input
+            inputs=bad_input,
+            parameters=bad_parameters
         )
         job = service.submit(bad_task)
         service.wait([job])

@@ -33,7 +33,9 @@ class TestLaunch(unittest.TestCase):
             "input_file_1" :
                 {"uuid" : "c39ded10-6073-11e4-9803-0800200c9a66"},
             "input_file_2" :
-                {"uuid" : "26fd12a2-9096-4af2-a989-9e2f1cb692fe"},
+                {"uuid" : "26fd12a2-9096-4af2-a989-9e2f1cb692fe"}
+        }
+        parameters = {
             "tail_select" : {
                 "lineNum" : 3
             }
@@ -49,7 +51,8 @@ class TestLaunch(unittest.TestCase):
         task = nebula.tasks.GalaxyWorkflowTask(
             "test_workflow",
             workflow,
-            inputs=input
+            inputs=input,
+            parameters=parameters
         )
 
         service = GalaxyService(
