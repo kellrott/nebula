@@ -23,7 +23,10 @@ from xml.dom.minidom import parse as parseXML
 from glob import glob
 from socket import gethostname
 
-DEFAULT_CONFIG=os.path.join(os.environ["HOME"], ".warpdrive", gethostname())
+if 'WARPDRIVE_CONFIG_DIR' in os.environ:
+    DEFAULT_CONFIG=os.path.join(os.path.abspath(os.environ["WARPDRIVE_CONFIG_DIR"]), gethostname())
+else:
+    DEFAULT_CONFIG=os.path.join(os.environ["HOME"], ".warpdrive", gethostname())
 if not os.path.exists(DEFAULT_CONFIG):
     os.makedirs(DEFAULT_CONFIG)
 
