@@ -25,6 +25,7 @@ class TestRunWorkflow(unittest.TestCase):
         if self.service is not None:
             self.service.stop()
             self.service = None
+            time.sleep(5)
 
         if os.path.exists("./test_tmp/docstore"):
             shutil.rmtree("./test_tmp/docstore")
@@ -89,7 +90,7 @@ class TestRunWorkflow(unittest.TestCase):
         bad_task = nebula.tasks.GalaxyWorkflowTask(
             "test_workflow_bad",
             workflow,
-            inputs=bad_input,
+            inputs=input,
             parameters=bad_parameters
         )
         job = service.submit(bad_task)

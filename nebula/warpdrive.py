@@ -281,7 +281,7 @@ def scan_directory(lpath, metadata_suffix=None):
 def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None,
     sudo=False, lib_data=[], auto_add=False, tool_data=None, metadata_suffix=None,
     tool_dir=None, config_dir=DEFAULT_CONFIG, work_dir=None, tool_docker=False, force=False,
-    tool_images=None, smp=[], cpus=None,
+    tool_images=None, smp=[], cpus=None, timeout=60,
     hold=False, key="HSNiugRFvgT574F43jZ7N9F3"):
 
     if config_dir is None:
@@ -407,7 +407,10 @@ def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None
         u = urlparse.urlparse(os.environ['DOCKER_HOST'])
         web_host = u.netloc.split(":")[0]
 
+    timeout_time = time.time() + timeout
     while True:
+        if time.time() > timeout_time:
+            raise Exception("Startup Timed out")
         time.sleep(3)
         try:
             url = "http://%s:%s/api/tools?key=%s" % (web_host, port, key)

@@ -18,10 +18,10 @@ class TestLaunch(unittest.TestCase):
     def tearDown(self):
         if self.service is not None:
             self.service.stop()
+            time.sleep(5)
 
         if os.path.exists("./test_tmp/docstore"):
             shutil.rmtree("./test_tmp/docstore")
-        time.sleep(5)
 
 
     def testCapture(self):
@@ -47,5 +47,3 @@ class TestLaunch(unittest.TestCase):
         self.service.start()
         time.sleep(10)
         self.assertFalse(self.service.in_error())
-        self.service.stop()
-        self.service = None

@@ -4,7 +4,7 @@ import uuid
 import json
 from glob import glob
 from urlparse import urlparse, ParseResult
-from nebula.objectstore import ObjectStore, DiskObjectStore, DiskObjectStoreConfig
+from galaxy.objectstore import ObjectStore, DiskObjectStore
 
 def from_url(url):
     p = urlparse(url)
@@ -13,6 +13,13 @@ def from_url(url):
 
     raise Exception("Unknown ObjectStore %s" % (url))
 
+
+class DiskObjectStoreConfig:
+    def __init__(self, job_work=None, new_file_path=None):
+        self.object_store_check_old_style = False
+        self.job_working_directory = job_work
+        self.new_file_path = new_file_path
+        self.umask = 077
 
 class DocStore(ObjectStore):
     """

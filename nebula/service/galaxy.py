@@ -12,7 +12,7 @@ from nebula.galaxy import GalaxyWorkflow
 class HDATarget(Target):
     def __init__(self, meta):
         self.meta = meta
-        self.uuid = meta['id']
+        self.id = meta['id']
 
 
 def which(file):
@@ -98,11 +98,11 @@ class GalaxyService(Service):
                     job_id, job = req
                     wids = []
                     for k, v in job.get_inputs().items():
-                        file_path = self.docstore.get_filename(Target(v.uuid))
+                        file_path = self.docstore.get_filename(Target(v.id))
                         logging.info("Loading FilePath: %s" % (file_path))
 
                         nli = self.rg.library_paste_file(library_id=library_id, library_folder_id=folder_id,
-                            name=v.uuid, datapath=file_path, uuid=v.uuid)
+                            name=v.id, datapath=file_path, uuid=v.uuid)
                         if 'id' not in nli:
                             raise Exception("Failed to load data: %s" % (str(nli)))
                         wids.append(nli['id'])
@@ -112,6 +112,8 @@ class GalaxyService(Service):
                         done = True
                         for w in wids:
                             d = self.rg.library_get_contents(library_id, w)
+                            if d['state'] == 'error':
+                                raise Exception("Data loading Error")
                             if d['state'] != 'ok':
                                 logging.debug("Data loading: %s" % (d['state']))
                                 done = False
