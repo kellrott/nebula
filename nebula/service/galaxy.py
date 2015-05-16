@@ -123,6 +123,7 @@ class GalaxyService(Service):
                         time.sleep(2)
 
                     workflow_data = job.task.to_dict()['workflow']
+                    logging.info("Loading Workflow: %s" % (workflow_data['uuid']))
                     self.rg.add_workflow(workflow_data)
                     wf = GalaxyWorkflow(workflow_data)
                     request = job.task.get_workflow_request()

@@ -107,6 +107,8 @@ class GalaxyWorkflowTask(Task):
         for k, v in self.inputs.items():
             if isinstance(v, Target):
                 out[k] = v
+            else:
+                logging.info("Unknown Input Type: %s" % (k))
         return out
 
     def to_dict(self):

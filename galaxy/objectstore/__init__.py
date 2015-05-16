@@ -179,6 +179,15 @@ class ObjectStore(object):
         """
         raise NotImplementedError()
 
+    def local_store_base(self):
+        """
+        Return the base path of the directory where local files are stored
+        Can be used to define base mount points for making files avalible in
+        program containers
+        """
+        raise NotImplementedError()
+
+
 
 class DiskObjectStore(ObjectStore):
     """

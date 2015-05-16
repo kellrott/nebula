@@ -5,6 +5,7 @@ import json
 from glob import glob
 from urlparse import urlparse, ParseResult
 from galaxy.objectstore import ObjectStore, DiskObjectStore
+from galaxy.objectstore.local_cache import CachedDiskObjectStore
 
 def from_url(url):
     p = urlparse(url)
@@ -101,8 +102,11 @@ class FileDocStore(DocStore):
     Cheap and simple file based doc store, not recommended for large systems
     """
 
-    def __init__(self, file_path, **kwds):
-        objs = DiskObjectStore(DiskObjectStoreConfig(), file_path=file_path)
+    def __init__(self, file_path, cache_path=None, **kwds):
+        if cache_path:
+            objs = CachedDiskObjectStore(DiskObjectStoreConfig(), cache_path=cache_path, file_path=file_path)
+        else:
+            objs = DiskObjectStore(DiskObjectStoreConfig(), file_path=file_path)
         super(FileDocStore, self).__init__(objectstore=objs, **kwds)
         self.file_path = file_path
         self.url = os.path.abspath(self.file_path)
