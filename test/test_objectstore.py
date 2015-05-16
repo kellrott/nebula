@@ -30,9 +30,9 @@ class DocStoreTest(unittest.TestCase):
             self.service = None
             time.sleep(5)
 
-        #for a in ["../test_tmp/docstore", "../test_tmp/cache_1", "../test_tmp/cache_2"]:
-        #    if os.path.exists(get_abspath(a)):
-        #        shutil.rmtree(get_abspath(a))
+        for a in ["../test_tmp/docstore", "../test_tmp/cache_1", "../test_tmp/cache_2"]:
+            if os.path.exists(get_abspath(a)):
+                shutil.rmtree(get_abspath(a))
 
     def testDocStore(self):
         docstore = nebula.docstore.from_url(get_abspath("../test_tmp/docstore"))

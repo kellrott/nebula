@@ -89,6 +89,9 @@ class DocStore(ObjectStore):
     def get_store_usage_percent(self):
         return self.objs.get_store_usage_percent()
 
+    def local_cache_base(self):
+        return self.objs.local_cache_base()
+
 class TargetDict(dict):
     def __init__(self, src):
         dict.__init__(self, src)

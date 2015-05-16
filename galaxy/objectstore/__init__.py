@@ -179,7 +179,7 @@ class ObjectStore(object):
         """
         raise NotImplementedError()
 
-    def local_store_base(self):
+    def local_cache_base(self):
         """
         Return the base path of the directory where local files are stored
         Can be used to define base mount points for making files avalible in
@@ -372,6 +372,9 @@ class DiskObjectStore(ObjectStore):
     def get_store_usage_percent(self):
         st = os.statvfs(self.file_path)
         return ( float( st.f_blocks - st.f_bavail ) / st.f_blocks ) * 100
+
+    def local_cache_base(self):
+        return self.file_path
 
 
 class CachingObjectStore(ObjectStore):

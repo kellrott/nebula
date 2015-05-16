@@ -9,6 +9,7 @@ import nebula.tasks
 from nebula.docstore import FileDocStore
 from nebula.docstore.util import sync_doc_dir
 import nebula.tasks
+from nebula.target import Target
 from nebula.service import GalaxyService, TaskJob
 from nebula.galaxy import GalaxyWorkflow
 import logging
@@ -33,9 +34,9 @@ class TestRunWorkflow(unittest.TestCase):
     def testRunSimple(self):
         input = {
             "input_file_1" :
-                {"uuid" : "c39ded10-6073-11e4-9803-0800200c9a66"},
+                Target("c39ded10-6073-11e4-9803-0800200c9a66"),
             "input_file_2" :
-                {"uuid" : "26fd12a2-9096-4af2-a989-9e2f1cb692fe"}
+                Target("26fd12a2-9096-4af2-a989-9e2f1cb692fe")
         }
         parameters = {
             "tail_select" : {

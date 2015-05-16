@@ -1,6 +1,7 @@
 
 import os
 import shutil
+import logging
 from galaxy.objectstore import ObjectStore, DiskObjectStore, directory_hash_id
 
 
@@ -23,8 +24,9 @@ class CachedDiskObjectStore(ObjectStore):
         if not os.path.exists(path_dir):
             os.mkdir(path_dir)
         local_path = self._cache_path(obj)
-        if os.path.exists(local_path):
-            shutil.copy( self.get_filename(obj), local_path )
+        if not os.path.exists(local_path):
+            logging.info("Caching %s" % (obj.id))
+            shutil.copy( self.disk.get_filename(obj), local_path )
         return local_path
 
     def _cache_path_dir(self, obj):
@@ -42,3 +44,6 @@ class CachedDiskObjectStore(ObjectStore):
         file_ok = self._download(rel_path)
         self._fix_permissions(self._get_cache_path(rel_path_dir))
         return file_ok
+
+    def local_cache_base(self):
+        return self.cache_path

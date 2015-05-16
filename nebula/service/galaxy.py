@@ -79,9 +79,9 @@ class GalaxyService(Service):
         #FIXME: the 'file_path' value is specific to the DiskObjectStore
         docstore_path = self.docstore.file_path
         if 'lib_data' in self.config:
-            self.config['lib_data'].append(self.docstore.file_path)
+            self.config['lib_data'].append(self.docstore.local_cache_base())
         else:
-            self.config['lib_data'] = [ self.docstore.file_path ]
+            self.config['lib_data'] = [ self.docstore.local_cache_base() ]
         self.rg = run_up( **self.config )
         library_id = self.rg.library_find("Imported")['id']
         folder_id = self.rg.library_find_contents(library_id, "/")['id']

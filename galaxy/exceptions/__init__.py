@@ -7,8 +7,12 @@ try:
     eggs.require( "Paste" )
 except ImportError:
     pass
-    
-from paste import httpexceptions
+
+try:
+    from paste import httpexceptions
+except ImportError:
+    httpexceptions = None
+
 from ..exceptions import error_codes
 
 
