@@ -12,7 +12,7 @@ from nebula.galaxy import GalaxyWorkflow
 class HDATarget(Target):
     def __init__(self, meta):
         self.meta = meta
-        self.uuid = meta['id']
+        self.id = meta['id']
 
 
 def which(file):
@@ -79,9 +79,9 @@ class GalaxyService(Service):
         #FIXME: the 'file_path' value is specific to the DiskObjectStore
         docstore_path = self.docstore.file_path
         if 'lib_data' in self.config:
-            self.config['lib_data'].append(self.docstore.file_path)
+            self.config['lib_data'].append(self.docstore.local_cache_base())
         else:
-            self.config['lib_data'] = [ self.docstore.file_path ]
+            self.config['lib_data'] = [ self.docstore.local_cache_base() ]
         self.rg = run_up( **self.config )
         library_id = self.rg.library_find("Imported")['id']
         folder_id = self.rg.library_find_contents(library_id, "/")['id']
@@ -98,11 +98,11 @@ class GalaxyService(Service):
                     job_id, job = req
                     wids = []
                     for k, v in job.get_inputs().items():
-                        file_path = self.docstore.get_filename(Target(v.uuid))
+                        file_path = self.docstore.get_filename(Target(v.id))
                         logging.info("Loading FilePath: %s" % (file_path))
 
                         nli = self.rg.library_paste_file(library_id=library_id, library_folder_id=folder_id,
-                            name=v.uuid, datapath=file_path, uuid=v.uuid)
+                            name=v.id, datapath=file_path, uuid=v.uuid)
                         if 'id' not in nli:
                             raise Exception("Failed to load data: %s" % (str(nli)))
                         wids.append(nli['id'])
@@ -112,6 +112,8 @@ class GalaxyService(Service):
                         done = True
                         for w in wids:
                             d = self.rg.library_get_contents(library_id, w)
+                            if d['state'] == 'error':
+                                raise Exception("Data loading Error")
                             if d['state'] != 'ok':
                                 logging.debug("Data loading: %s" % (d['state']))
                                 done = False
@@ -121,6 +123,7 @@ class GalaxyService(Service):
                         time.sleep(2)
 
                     workflow_data = job.task.to_dict()['workflow']
+                    logging.info("Loading Workflow: %s" % (workflow_data['uuid']))
                     self.rg.add_workflow(workflow_data)
                     wf = GalaxyWorkflow(workflow_data)
                     request = job.task.get_workflow_request()

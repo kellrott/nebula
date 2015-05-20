@@ -19,22 +19,23 @@ def file_uuid(path):
 
 class Target(object):
     def __init__(self, uuid):
+        self.id = uuid
         self.uuid = uuid
 
     def to_dict(self):
         return {
             "model_class" : "Target",
-            'uuid' : self.uuid
+            'uuid' : self.id
         }
 
     def __str__(self):
-        return "uuid:%s" % (self.uuid)
+        return "uuid:%s" % (self.id)
 
     def __repr__(self):
-        return '{"uuid":"%s"}' % (self.uuid)
+        return '{"uuid":"%s"}' % (self.id)
 
     def __eq__(self, e):
-        if isinstance(e, Target) and e.uuid == self.uuid:
+        if isinstance(e, Target) and e.id == self.id:
             return True
         return False
 
@@ -57,12 +58,12 @@ class TargetFuture(object):
             raise CompileException("Non-String parent ID")
         self.parent_task_id = parent_task_id
         if in_uuid is None:
-            self.uuid = str(uuid.uuid4())
+            self.id = str(uuid.uuid4())
         else:
-            self.uuid = in_uuid
+            self.id = in_uuid
 
     def to_dict(self):
         return {
             'task_id' : self.parent_task_id,
-            'uuid' : str(self.uuid)
+            'uuid' : str(self.id)
         }

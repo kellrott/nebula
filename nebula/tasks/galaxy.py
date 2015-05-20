@@ -2,6 +2,7 @@
 
 import os
 import json
+import logging
 
 #from nebula.dag import Target, TaskNode, TargetFuture
 from nebula.tasks import Task
@@ -107,6 +108,8 @@ class GalaxyWorkflowTask(Task):
         for k, v in self.inputs.items():
             if isinstance(v, Target):
                 out[k] = v
+            else:
+                logging.error("Unknown Input Type: %s" % (k))
         return out
 
     def to_dict(self):

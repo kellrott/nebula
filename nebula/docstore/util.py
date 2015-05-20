@@ -33,7 +33,7 @@ def sync_doc_dir(path, docstore, uuid_set=None):
                 docstore.update_from_file(t, path, create=True)
                 with open(path + ".json") as handle:
                     meta = json.loads(handle.read())
-                docstore.put(t.uuid, meta)
+                docstore.put(t.id, meta)
 
 """
         #move the output data into the datastore

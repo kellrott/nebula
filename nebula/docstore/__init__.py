@@ -4,7 +4,8 @@ import uuid
 import json
 from glob import glob
 from urlparse import urlparse, ParseResult
-from nebula.objectstore import ObjectStore, DiskObjectStore, DiskObjectStoreConfig
+from galaxy.objectstore import ObjectStore, DiskObjectStore
+from galaxy.objectstore.local_cache import CachedDiskObjectStore
 
 def from_url(url):
     p = urlparse(url)
@@ -13,6 +14,13 @@ def from_url(url):
 
     raise Exception("Unknown ObjectStore %s" % (url))
 
+
+class DiskObjectStoreConfig:
+    def __init__(self, job_work=None, new_file_path=None):
+        self.object_store_check_old_style = False
+        self.job_working_directory = job_work
+        self.new_file_path = new_file_path
+        self.umask = 077
 
 class DocStore(ObjectStore):
     """
@@ -81,6 +89,9 @@ class DocStore(ObjectStore):
     def get_store_usage_percent(self):
         return self.objs.get_store_usage_percent()
 
+    def local_cache_base(self):
+        return self.objs.local_cache_base()
+
 class TargetDict(dict):
     def __init__(self, src):
         dict.__init__(self, src)
@@ -94,8 +105,11 @@ class FileDocStore(DocStore):
     Cheap and simple file based doc store, not recommended for large systems
     """
 
-    def __init__(self, file_path, **kwds):
-        objs = DiskObjectStore(DiskObjectStoreConfig(), file_path=file_path)
+    def __init__(self, file_path, cache_path=None, **kwds):
+        if cache_path:
+            objs = CachedDiskObjectStore(DiskObjectStoreConfig(), cache_path=cache_path, file_path=file_path)
+        else:
+            objs = DiskObjectStore(DiskObjectStoreConfig(), file_path=file_path)
         super(FileDocStore, self).__init__(objectstore=objs, **kwds)
         self.file_path = file_path
         self.url = os.path.abspath(self.file_path)
