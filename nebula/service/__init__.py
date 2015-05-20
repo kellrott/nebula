@@ -64,6 +64,7 @@ class Service(Thread):
         except Exception, e:
             self.exception_str = traceback.format_exc()
             logging.error("Service Failure:" + str(e))
+            print self.exception_str
             self.exception = e
 
     def in_error(self):
@@ -102,6 +103,7 @@ class Service(Thread):
             if not waiting:
                 break
             if self.in_error():
+                raise Exception("Service Error")
                 break
             time.sleep(sleep_time)
             if sleep_time < 60:

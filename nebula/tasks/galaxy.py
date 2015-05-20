@@ -19,7 +19,7 @@ class GalaxyTargetFuture(TargetFuture):
         super(GalaxyTargetFuture, self).__init__(task_id)
 
 class GalaxyWorkflowTask(Task):
-    def __init__(self, task_id, workflow, inputs=None, parameters=None, tags=None):
+    def __init__(self, task_id, workflow, inputs=None, parameters=None, tags=None, tool_tags=None):
 
         super(GalaxyWorkflowTask,self).__init__(task_id) #, inputs=inputs, **kwds)
 
@@ -42,31 +42,7 @@ class GalaxyWorkflowTask(Task):
         self.inputs = inputs
         self.parameters = parameters
         self.tags = tags
-        """
-        outputs = {}
-        for step in self.data['steps'].values():
-            if 'post_job_actions' in step and len(step['post_job_actions']):
-                for act in step['post_job_actions'].values():
-                    if act['action_type'] == 'RenameDatasetAction':
-                        new_name = act["action_arguments"]["newname"]
-                        old_name = act["output_name"]
-                        outputs[new_name] = GalaxyTargetFuture(task_id=task_id, step_id=step['id'], output_name=old_name)
-
-        wf = Workflow(self.data)
-        wf_inputs = {'inputs' : inputs, 'parameters' : parameters}
-        if tags is not None:
-            wf_inputs['tags'] = tags
-        #print "BEFORE!!!", wf_inputs
-        wf_req = wf.adjust_input(wf_inputs)
-        self.request = wf_req
-        #print "PARAMS!!!", json.dumps(self.parameters)
-
-        for step in self.data['steps'].values():
-            if step['type'] == 'data_input':
-                name = step['inputs'][0]['name']
-                if name not in self.inputs:
-                    raise CompileException("Missing input: %s" % (name))
-        """
+        self.tool_tags = tool_tags
 
     def is_valid(self):
         valid = True
@@ -89,6 +65,15 @@ class GalaxyWorkflowTask(Task):
                     valid = False
         return valid
 
+    def get_inputs(self):
+        out = {}
+        for k, v in self.inputs.items():
+            if isinstance(v, Target):
+                out[k] = v
+            else:
+                logging.error("Unknown Input Type: %s" % (k))
+        return out
+
     @staticmethod
     def from_dict(data):
         request = {}
@@ -100,17 +85,8 @@ class GalaxyWorkflowTask(Task):
         return GalaxyWorkflowTask(
             data['task_id'], workflow=GalaxyWorkflow(data['workflow']),
             inputs=request, parameters=data.get('parameters', None),
-            tags=data.get('tags', None)
+            tags=data.get('tags', None), tool_tags=data.get('tool_tags', None)
         )
-
-    def get_inputs(self):
-        out = {}
-        for k, v in self.inputs.items():
-            if isinstance(v, Target):
-                out[k] = v
-            else:
-                logging.error("Unknown Input Type: %s" % (k))
-        return out
 
     def to_dict(self):
         inputs = {}
@@ -126,7 +102,8 @@ class GalaxyWorkflowTask(Task):
             'workflow' : self.workflow.to_dict(),
             'inputs' : inputs,
             'parameters' : self.parameters,
-            'tags' : self.tags
+            'tags' : self.tags,
+            'tool_tags' : self.tool_tags
             #'outputs' : self.get_output_data(),
         }
 
@@ -180,6 +157,37 @@ class GalaxyWorkflowTask(Task):
                     if step_name not in parameters:
                         parameters[step_name] = {} # json.loads(step_info['tool_state'])
                     parameters[step_name]["__POST_JOB_ACTIONS__"] = pja_map
+        if self.tool_tags is not None:
+            for step, step_info in workflow_data['steps'].items():
+                if step_info['type'] == "tool":
+                    step_name = None
+                    if step_info['label'] in self.tool_tags:
+                        step_name = step_info['label']
+                    if step_info['annotation'] in self.tool_tags:
+                        step_name = step_info['annotation']
+                    if step_info['uuid'] in self.tool_tags:
+                        step_name = step_info['uuid']
+                    step_id = step_info['uuid']
+                    if step_name is not None:
+                        pja_map = {}
+                        for i, output in enumerate(step_info['outputs']):
+                            output_name = output['name']
+                            if output_name in self.tool_tags[step_name]:
+                                pja_map["RenameDatasetActionout_file%s" % (i)] = {
+                                    "action_type" : "TagDatasetAction",
+                                    "output_name" : output_name,
+                                    "action_arguments" : {
+                                        "tags" : ",".join(self.tool_tags[step_name][output_name])
+                                    },
+                                }
+                        if len(pja_map):
+                            #print "PJA", pja_map
+                            if step_name not in parameters:
+                                parameters[step_name] = {} # json.loads(step_info['tool_state'])
+                            if "__POST_JOB_ACTIONS__" not in parameters[step_name]:
+                                parameters[step_id]["__POST_JOB_ACTIONS__"] = {}
+                            for k,v in pja_map.items():
+                                parameters[step_id]["__POST_JOB_ACTIONS__"][k] = v
 
         out['workflow_id'] = workflow_data['uuid']
         out['inputs'] = dsmap

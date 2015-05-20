@@ -23,11 +23,11 @@ class TestWorkflow(unittest.TestCase):
         self.service = None
 
     def tearDown(self):
-        #if os.path.exists("./test_tmp/docstore"):
-        #    shutil.rmtree("./test_tmp/docstore")
-        if self.service is not None:
-            self.service.stop()
-            self.service = None
+        if os.path.exists("./test_tmp/docstore"):
+            shutil.rmtree("./test_tmp/docstore")
+        #if self.service is not None:
+        #    self.service.stop()
+        #    self.service = None
 
     def testWorkflow(self):
 
@@ -149,3 +149,50 @@ class TestWorkflow(unittest.TestCase):
         service.wait([job])
         self.assertIn(job.get_status(), ['ok'])
         self.assertFalse( service.in_error() )
+
+
+    def testToolTagging(self):
+
+        doc = FileDocStore(file_path=get_abspath("../test_tmp/docstore"))
+        sync_doc_dir(get_abspath("../examples/simple_galaxy/"), doc,
+            uuid_set=["c39ded10-6073-11e4-9803-0800200c9a66", "26fd12a2-9096-4af2-a989-9e2f1cb692fe"]
+        )
+
+        input_file_1 = Target(uuid="c39ded10-6073-11e4-9803-0800200c9a66")
+        input_file_2 = Target(uuid="26fd12a2-9096-4af2-a989-9e2f1cb692fe")
+        workflow = GalaxyWorkflow(ga_file=get_abspath("../examples/simple_galaxy/SimpleWorkflow.ga"))
+        task_tag = nebula.tasks.GalaxyWorkflowTask("workflow_ok",
+            workflow,
+            inputs={
+                'input_file_1' : input_file_1,
+                'input_file_2' : input_file_2
+            },
+            parameters={
+                "tail_select" : {
+                    "lineNum" : 3
+                }
+            },
+            tool_tags= {
+                "tail_select" : {
+                    "out_file1" : [
+                        "run:testing"
+                    ]
+                }
+            }
+        )
+        print "Starting Service"
+        service = GalaxyService(
+            docstore=doc,
+            name="nosetest_galaxy",
+            galaxy="bgruening/galaxy-stable:dev",
+            force=True,
+            port=20022
+        )
+        service.start()
+        self.service = service
+        job = service.submit(task_tag)
+        print "JOB", job.get_status()
+        service.wait([job])
+        self.assertIn(job.get_status(), ['ok'])
+        self.assertFalse( service.in_error() )
+        print service.in_error()
