@@ -25,9 +25,9 @@ class TestWorkflow(unittest.TestCase):
     def tearDown(self):
         if os.path.exists("./test_tmp/docstore"):
             shutil.rmtree("./test_tmp/docstore")
-        #if self.service is not None:
-        #    self.service.stop()
-        #    self.service = None
+        if self.service is not None:
+            self.service.stop()
+            self.service = None
 
     def testWorkflow(self):
 
@@ -172,10 +172,13 @@ class TestWorkflow(unittest.TestCase):
                     "lineNum" : 3
                 }
             },
+            tags = [
+                "run:testing"
+            ],
             tool_tags= {
                 "tail_select" : {
                     "out_file1" : [
-                        "run:testing"
+                        "file:tail"
                     ]
                 }
             }

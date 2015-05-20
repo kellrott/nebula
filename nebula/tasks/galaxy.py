@@ -140,26 +140,11 @@ class GalaxyWorkflowTask(Task):
                                 parameters[label] = v
 
         #TAGS
-        if self.tags is not None:
+        if self.tags is not None or self.tool_tags is not None:
             for step, step_info in workflow_data['steps'].items():
-                step_name = step_info['uuid']
+                step_id = step_info['uuid']
                 if step_info['type'] == "tool":
-                    pja_map = {}
-                    for i, output in enumerate(step_info['outputs']):
-                        output_name = output['name']
-                        pja_map["RenameDatasetActionout_file%s" % (i)] = {
-                            "action_type" : "TagDatasetAction",
-                            "output_name" : output_name,
-                            "action_arguments" : {
-                                "tags" : ",".join(self.tags)
-                            },
-                        }
-                    if step_name not in parameters:
-                        parameters[step_name] = {} # json.loads(step_info['tool_state'])
-                    parameters[step_name]["__POST_JOB_ACTIONS__"] = pja_map
-        if self.tool_tags is not None:
-            for step, step_info in workflow_data['steps'].items():
-                if step_info['type'] == "tool":
+
                     step_name = None
                     if step_info['label'] in self.tool_tags:
                         step_name = step_info['label']
@@ -167,27 +152,32 @@ class GalaxyWorkflowTask(Task):
                         step_name = step_info['annotation']
                     if step_info['uuid'] in self.tool_tags:
                         step_name = step_info['uuid']
-                    step_id = step_info['uuid']
-                    if step_name is not None:
-                        pja_map = {}
-                        for i, output in enumerate(step_info['outputs']):
-                            output_name = output['name']
-                            if output_name in self.tool_tags[step_name]:
-                                pja_map["RenameDatasetActionout_file%s" % (i)] = {
-                                    "action_type" : "TagDatasetAction",
-                                    "output_name" : output_name,
-                                    "action_arguments" : {
-                                        "tags" : ",".join(self.tool_tags[step_name][output_name])
-                                    },
-                                }
-                        if len(pja_map):
-                            #print "PJA", pja_map
-                            if step_name not in parameters:
-                                parameters[step_name] = {} # json.loads(step_info['tool_state'])
-                            if "__POST_JOB_ACTIONS__" not in parameters[step_name]:
-                                parameters[step_id]["__POST_JOB_ACTIONS__"] = {}
-                            for k,v in pja_map.items():
-                                parameters[step_id]["__POST_JOB_ACTIONS__"][k] = v
+                    tags = []
+                    if self.tags is not None:
+                        tags += self.tags
+
+                    pja_map = {}
+                    for i, output in enumerate(step_info['outputs']):
+                        output_name = output['name']
+                        if step_name is not None and output_name in self.tool_tags[step_name]:
+                            cur_tags = tags + self.tool_tags[step_name][output_name]
+                        else:
+                            cur_tags = tags
+                        if len(cur_tags):
+                            pja_map["RenameDatasetActionout_file%s" % (len(pja_map))] = {
+                                "action_type" : "TagDatasetAction",
+                                "output_name" : output_name,
+                                "action_arguments" : {
+                                    "tags" : ",".join(cur_tags)
+                                },
+                            }
+
+                    if len(pja_map):
+                        if step_id not in parameters:
+                            parameters[step_id] = {} # json.loads(step_info['tool_state'])
+                        parameters[step_id]["__POST_JOB_ACTIONS__"] = pja_map
+
+
 
         out['workflow_id'] = workflow_data['uuid']
         out['inputs'] = dsmap
