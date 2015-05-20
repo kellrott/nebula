@@ -95,7 +95,6 @@ def action_tree(args):
         print "DAG:", a
 
 def action_run(args):
-    print args
 
     config = ServiceConfig()
     with open(args.service_file) as handle:
@@ -106,6 +105,7 @@ def action_run(args):
         taskgroup.load(handle)
 
     service = config.create()
+    error = 0
     try:
         logging.info("Starting Service")
         service.start()
@@ -122,11 +122,12 @@ def action_run(args):
                 sys.stderr.write("---ERROR---\n")
                 sys.stderr.write(job.error_msg + "\n")
                 sys.stderr.write("---ERROR---\n")
-                raise Exception("Job Failed")
+                error = 1
     finally:
         logging.info("Done")
-        if not args.hold:
-            service.stop()
+        if not args.hold and (not args.hold_error or not error):
+            service.stop()    
+    return error
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -135,6 +136,7 @@ if __name__ == "__main__":
     parser_run = subparsers.add_parser('run')
     parser_run.add_argument("-v", action="store_true", default=False)
     parser_run.add_argument("--hold", action="store_true", default=False)
+    parser_run.add_argument("--hold-error", action="store_true", default=False)
     parser_run.add_argument("service_file")
     parser_run.add_argument("task_file")
     parser_run.set_defaults(func=action_run)
@@ -171,8 +173,8 @@ if __name__ == "__main__":
     func = args.func
 
     #try:
-    func(args)
-    sys.exit(0)
+    e = func(args)
+    sys.exit(e)
     #except Exception, e:
     #    sys.stderr.write("%s\n" % (e.message))
     #    sys.exit(1)

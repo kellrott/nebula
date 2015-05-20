@@ -289,7 +289,8 @@ def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None
 
     env = {
         "GALAXY_CONFIG_CHECK_MIGRATE_TOOLS" : "False",
-        "GALAXY_CONFIG_MASTER_API_KEY" : key
+        "GALAXY_CONFIG_MASTER_API_KEY" : key,
+        "GALAXY_CONFIG_CLEANUP_JOB" : "onsuccess"
     }
 
     mounts = {}
