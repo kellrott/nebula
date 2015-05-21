@@ -7,10 +7,10 @@ from urlparse import urlparse, ParseResult
 from galaxy.objectstore import ObjectStore, DiskObjectStore
 from galaxy.objectstore.local_cache import CachedDiskObjectStore
 
-def from_url(url):
+def from_url(url, **kwds):
     p = urlparse(url)
-    if p.scheme == '':
-        return FileDocStore(file_path=url)
+    if p.scheme in ['', 'filedoc'] :
+        return FileDocStore(file_path=p.path, **kwds)
 
     raise Exception("Unknown ObjectStore %s" % (url))
 
@@ -92,6 +92,10 @@ class DocStore(ObjectStore):
     def local_cache_base(self):
         return self.objs.local_cache_base()
 
+    def get_url(self):
+        raise Exception("Not Implemented")
+
+
 class TargetDict(dict):
     def __init__(self, src):
         dict.__init__(self, src)
@@ -111,7 +115,7 @@ class FileDocStore(DocStore):
         else:
             objs = DiskObjectStore(DiskObjectStoreConfig(), file_path=file_path)
         super(FileDocStore, self).__init__(objectstore=objs, **kwds)
-        self.file_path = file_path
+        self.file_path = os.path.abspath(file_path)
         self.url = os.path.abspath(self.file_path)
         if not os.path.exists(self.file_path):
             os.mkdir(self.file_path)
@@ -148,3 +152,6 @@ class FileDocStore(DocStore):
                         match = False
                 if match:
                     yield doc_id, TargetDict(meta)
+
+    def get_url(self):
+        return "filedoc://%s" % (self.url)

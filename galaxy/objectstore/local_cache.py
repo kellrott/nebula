@@ -13,6 +13,12 @@ class CachedDiskObjectStore(ObjectStore):
         if not os.path.exists(self.cache_path):
             os.mkdir(self.cache_path)
 
+    def create(self, obj, base_dir=None, dir_only=False, extra_dir=None, extra_dir_at_root=False, alt_name=None, obj_dir=False):
+        self.disk.create(obj,
+            base_dir=base_dir, dir_only=dir_only,
+            extra_dir=extra_dir, extra_dir_at_root=extra_dir_at_root,
+            alt_name=alt_name, obj_dir=obj_dir)
+
     def update_from_file(self, obj, file_name=None, create=False, **kwargs):
         self.disk.update_from_file(obj=obj, file_name=file_name, create=create, **kwargs)
 

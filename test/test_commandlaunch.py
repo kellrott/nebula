@@ -17,7 +17,7 @@ from nebula.service import GalaxyService, TaskJob
 from nebula.galaxy import GalaxyWorkflow
 
 def get_abspath(path):
-    return os.path.join(os.path.dirname(__file__), path)
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), path))
 
 class TestLaunch(unittest.TestCase):
 
@@ -42,7 +42,9 @@ class TestLaunch(unittest.TestCase):
             }
         }
 
-        doc = FileDocStore(file_path=get_abspath("../test_tmp/docstore"))
+        doc = FileDocStore(
+            file_path=get_abspath("../test_tmp/docstore")
+        )
         logging.info("Adding files to object store")
         sync_doc_dir("examples/simple_galaxy/", doc,
             uuid_set=["c39ded10-6073-11e4-9803-0800200c9a66", "26fd12a2-9096-4af2-a989-9e2f1cb692fe"]
@@ -71,7 +73,7 @@ class TestLaunch(unittest.TestCase):
             taskset.store(handle)
 
         with open(service_path, "w") as handle:
-            service.get_config().store(handle)
+            service.get_config().set_docstore_config(cache_path=get_abspath("../test_tmp/cache")).store(handle)
 
         env = dict(os.environ)
         if 'PYTHONPATH' in env:
@@ -79,3 +81,6 @@ class TestLaunch(unittest.TestCase):
         else:
             env['PYTHONPATH'] = get_abspath("../")
         subprocess.check_call([get_abspath("../bin/nebula"), "run", service_path, task_path], env=env)
+
+        for i in doc.filter():
+            print json.dumps(i, indent=4)

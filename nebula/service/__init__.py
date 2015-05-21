@@ -139,6 +139,11 @@ class ServiceConfig:
     def load(self, handle):
         line = handle.readline()
         self.config = json.loads(line)
+        return self
+
+    def set_docstore_config(self, **kwds):
+        self.config['docstore_config'] = kwds
+        return self
 
     def create(self):
         return from_dict(self.config)

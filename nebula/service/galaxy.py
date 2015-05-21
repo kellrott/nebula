@@ -60,13 +60,13 @@ class GalaxyService(Service):
         return {
             'service_type' : 'Galaxy',
             'config' : self.config,
-            'docstore_url' : self.docstore.url
+            'docstore_url' : self.docstore.get_url()
         }
 
     @staticmethod
     def from_dict(data):
         meta = dict(data)
-        doc_store = nebula.docstore.from_url(data['docstore_url'])
+        doc_store = nebula.docstore.from_url(data['docstore_url'], **data.get('docstore_config', {}))
         return GalaxyService( doc_store, **data['config'] )
 
     def get_config(self):
