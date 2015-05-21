@@ -1,0 +1,49 @@
+---
+
+- hosts: localhost
+  connection: local
+  vars_files:
+    - vars/main.yml
+  tasks:
+  - name: Create a new mesos master instance
+    nova_compute:
+      name: mesos-master
+      login_tenant_name: "{{ login_tenant_name }}"
+      login_username: "{{ login_name }}"
+      login_password: "{{ login_password }}"
+      auth_url: "{{ auth_url }}"
+      image_id: "{{ image_id }}"
+      flavor_id: "{{master_flavor_id}}"
+      state: "{{ instance_state }}"
+      key_name: "{{ key_name }}"
+      wait_for: 200
+      nics:
+        - net-id: "{{ network_id }}"
+      security_groups: spark,default
+      meta:
+        hostname: mesos-master
+        ansible_host_groups: mesos_masters,zookeepers
+        ansible_host_vars: zookeeper_myid->1
+
+  - name: Create a new mesos slaves
+    nova_compute:
+      name: "{{ item }}"
+      login_tenant_name: "{{ login_tenant_name }}"
+      login_username: "{{ login_name }}"
+      login_password: "{{ login_password }}"
+      auth_url: "{{ auth_url }}"
+      image_id: "{{image_id}}"
+      flavor_id: "{{slave_flavor_id}}"
+      state: "{{ instance_state }}"
+      key_name: "{{ key_name }}"
+      wait_for: 200
+      nics:
+        - net-id: "{{ network_id }}"
+      security_groups: spark,default
+      meta:
+        hostname: "{{ item }}"
+        ansible_host_groups: mesos_slaves
+    with_sequence:
+      start=0
+      end="{{ nbr_of_slaves }}"
+      format=mesos-slave%02x

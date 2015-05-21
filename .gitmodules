@@ -1,0 +1,6 @@
+[submodule "deploy/roles/ansible-docker"]
+	path = deploy/roles/ansible-docker
+	url = https://github.com/AnsibleShipyard/ansible-docker.git
+[submodule "deploy/roles/ansible-mesos"]
+	path = deploy/roles/ansible-mesos
+	url = https://github.com/AnsibleShipyard/ansible-mesos.git
