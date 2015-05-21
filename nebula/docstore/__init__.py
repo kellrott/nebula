@@ -111,9 +111,9 @@ class FileDocStore(DocStore):
 
     def __init__(self, file_path, cache_path=None, **kwds):
         if cache_path:
-            objs = CachedDiskObjectStore(DiskObjectStoreConfig(), cache_path=cache_path, file_path=file_path)
+            objs = CachedDiskObjectStore(DiskObjectStoreConfig(), cache_path=cache_path, file_path=file_path, **kwds)
         else:
-            objs = DiskObjectStore(DiskObjectStoreConfig(), file_path=file_path)
+            objs = DiskObjectStore(DiskObjectStoreConfig(), file_path=file_path, **kwds)
         super(FileDocStore, self).__init__(objectstore=objs, **kwds)
         self.file_path = os.path.abspath(file_path)
         self.url = os.path.abspath(self.file_path)

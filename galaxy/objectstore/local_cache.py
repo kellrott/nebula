@@ -3,15 +3,33 @@ import os
 import shutil
 import logging
 from galaxy.objectstore import ObjectStore, DiskObjectStore, directory_hash_id
-
+from galaxy.util.files import umask_fix_perms
 
 class CachedDiskObjectStore(ObjectStore):
 
-    def __init__(self, config, cache_path, config_xml=None, file_path=None, extra_dirs=None):
+    def __init__(self, config, cache_path, open_perms=False, config_xml=None, file_path=None, extra_dirs=None):
         self.disk = DiskObjectStore(config=config, config_xml=config_xml, file_path=file_path, extra_dirs=extra_dirs)
         self.cache_path = os.path.abspath(cache_path)
+        self.open_perms = open_perms
         if not os.path.exists(self.cache_path):
             os.mkdir(self.cache_path)
+        if self.open_perms:
+            os.chmod(self.cache_path, 0o777)
+        self._fix_permissions(self.cache_path)
+        
+    def _fix_permissions(self, rel_path):
+        if self.open_perms:
+            if os.path.isfile(rel_path):
+                os.chmod(rel_path, 0o777)
+            else:
+                for basedir, _, files in os.walk(rel_path):
+                    os.chmod(basedir, 0o777)
+                    for filename in files:
+                        path = os.path.join(basedir, filename)
+                        # Ignore symlinks
+                        if os.path.islink(path):
+                            continue
+                        os.chmod(path, 0o777)
 
     def create(self, obj, base_dir=None, dir_only=False, extra_dir=None, extra_dir_at_root=False, alt_name=None, obj_dir=False):
         self.disk.create(obj,
@@ -29,10 +47,12 @@ class CachedDiskObjectStore(ObjectStore):
         path_dir = self._cache_path_dir(obj)
         if not os.path.exists(path_dir):
             os.mkdir(path_dir)
+            self._fix_permissions(path_dir)
         local_path = self._cache_path(obj)
         if not os.path.exists(local_path):
             logging.info("Caching %s" % (obj.id))
             shutil.copy( self.disk.get_filename(obj), local_path )
+        self._fix_permissions(local_path)
         return local_path
 
     def _cache_path_dir(self, obj):
