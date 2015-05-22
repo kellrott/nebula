@@ -728,7 +728,7 @@ def dom_scan_iter(node, stack, prefix):
 
 
 def run_build(tool_dir, host=None, sudo=False, tool=None, no_cache=False, image_dir=None):
-    for tool_conf in glob(os.path.join(tool_dir, "*", "*.xml")):
+    for tool_conf in glob(os.path.join(tool_dir, "*.xml")) + glob(os.path.join(tool_dir, "*", "*.xml")):
         logging.info("Scanning: " + tool_conf)
         dom = parseXML(tool_conf)
         s = dom_scan(dom.childNodes[0], "tool")
