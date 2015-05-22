@@ -120,9 +120,15 @@ class FileDocStore(DocStore):
         if not os.path.exists(self.file_path):
             os.mkdir(self.file_path)
 
+    def _docpath(self, id):
+        return os.path.join(self.file_path, id[:2], "dataset_" + id + FILE_SUFFIX)
+
+    def _doclist(self):
+        return glob(os.path.join(self.file_path, "*", "dataset_*" + FILE_SUFFIX))
+
     def get(self, id):
         id = self.cleanid(id)
-        path = os.path.join(self.file_path, id[:2], id + FILE_SUFFIX)
+        path = self._docpath(id)
         if not os.path.exists(path):
             return None
         with open(path) as handle:
@@ -134,12 +140,9 @@ class FileDocStore(DocStore):
         dir = os.path.join(self.file_path, id[:2])
         if not os.path.exists(dir):
             os.mkdir(dir)
-        path = os.path.join(self.file_path, id[:2], id + FILE_SUFFIX)
+        path =self._docpath(id)
         with open(path, "w") as handle:
             handle.write(self.dumpdoc(doc))
-
-    def _doclist(self):
-        return glob(os.path.join(self.file_path, "*", "*" + FILE_SUFFIX))
 
     def filter(self, **kwds):
         for a in self._doclist():
