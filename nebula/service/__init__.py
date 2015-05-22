@@ -87,12 +87,17 @@ class Service(Thread):
                 logging.info("Status check %s %s" % (status, i))
                 if status in ['ok'] and i.job_id not in collected:
                     logging.info("Collecting outputs of %s" % (i.job_id))
+                    meta_collect_count = 0
                     for name, dataset in i.get_outputs(all=True).items():
                         self.store_meta(dataset, self.docstore)
+                        meta_collect_count += 1
                     #only store data for non-hiddent results
+                    data_collect_count = 0
                     for name, dataset in i.get_outputs().items():
                         self.store_data(dataset, self.docstore)
+                        data_collect_count += 1
                     collected.append(i.job_id)
+                    logging.info("Collected: %d meta %d data" % (meta_collect_count, data_collect_count))
                 if status in ['error'] and i.job_id not in collected:
                     logging.info("Collecting error output of %s" % (i.job_id))
                     for name, dataset in i.get_outputs(all=True).items():
@@ -108,6 +113,7 @@ class Service(Thread):
             time.sleep(sleep_time)
             if sleep_time < 60:
                 sleep_time += 1
+        logging.info("Waiting Done")
 
     def status(self, job_id):
         with self.queue_lock:
@@ -126,6 +132,9 @@ class Service(Thread):
         return None
 
     def store_data(self, data, object_store):
+        raise NotImplementedException()
+
+    def store_meta(self, data, object_store):
         raise NotImplementedException()
 
 

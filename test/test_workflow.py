@@ -180,6 +180,9 @@ class TestWorkflow(unittest.TestCase):
                     "out_file1" : [
                         "file:tail"
                     ]
+                },
+                "concat_out" : {
+                    "out_file1" : ["file:output"]
                 }
             }
         )

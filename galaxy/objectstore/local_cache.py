@@ -38,7 +38,15 @@ class CachedDiskObjectStore(ObjectStore):
             alt_name=alt_name, obj_dir=obj_dir)
 
     def update_from_file(self, obj, file_name=None, create=False, **kwargs):
-        self.disk.update_from_file(obj=obj, file_name=file_name, create=create, **kwargs)
+        if create:
+            self.disk.update_from_file(obj=obj, file_name=file_name, create=create, **kwargs)
+        else:
+            if file_name is not None:
+                logging.info("Copying %s to object store" % (file_name))
+                shutil.copy( file_name, self.disk.get_filename(obj) )
+            else:
+                logging.info("Copying %s to object store" % (self._cache_path(obj)))
+                shutil.copy( self._cache_path(obj), self.disk.get_filename(obj) )
 
     def exists(self, obj, **kwargs):
         return self.disk.exists(obj=obj, **kwargs)
@@ -54,6 +62,10 @@ class CachedDiskObjectStore(ObjectStore):
             shutil.copy( self.disk.get_filename(obj), local_path )
         self._fix_permissions(local_path)
         return local_path
+
+    def size(self, obj, extra_dir=None, extra_dir_at_root=False, alt_name=None, obj_dir=False):
+        print "Sized file", self.disk.get_filename(obj)
+        return self.disk.size(obj=obj, extra_dir=extra_dir, extra_dir_at_root=extra_dir_at_root, alt_name=alt_name, obj_dir=obj_dir)
 
     def _cache_path_dir(self, obj):
         return os.path.join(self.cache_path, *directory_hash_id(obj.id))

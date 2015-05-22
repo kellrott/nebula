@@ -191,5 +191,6 @@ class GalaxyService(Service):
         meta = self.rg.get_dataset(object['id'], object['src'])
         prov = self.rg.get_provenance(meta['history_id'], object['id'])
         meta['provenance'] = prov
+        meta['id'] = meta['uuid']
         meta['job'] = self.rg.get_job(prov['job_id'])
         return meta

@@ -1,6 +1,4 @@
 
-
-
 import unittest
 
 import os
@@ -13,6 +11,8 @@ from nebula.target import Target
 from nebula.service import GalaxyService, TaskJob
 from nebula.galaxy import GalaxyWorkflow
 import nebula.tasks
+
+logging.basicConfig(level=logging.INFO)
 
 def get_abspath(path):
     return os.path.join(os.path.dirname(__file__), path)
@@ -80,13 +80,26 @@ class DocStoreTest(unittest.TestCase):
         task = nebula.tasks.GalaxyWorkflowTask(
             "test_workflow", workflow,
             inputs=input,
-            parameters=parameters
+            parameters=parameters,
+            tags = [
+                "run:testing"
+            ],
+            tool_tags= {
+                "tail_select" : {
+                    "out_file1" : [
+                        "file:tail"
+                    ]
+                },
+                "concat_out" : {
+                    "out_file1" : ["file:output"]
+                }
+            }
         )
 
         service = GalaxyService(
             docstore=doc,
             name="nosetest_galaxy",
-            galaxy="bgruening/galaxy-stable",
+            galaxy="bgruening/galaxy-stable:dev",
             force=True,
             port=20022
         )
@@ -102,5 +115,11 @@ class DocStoreTest(unittest.TestCase):
         self.assertFalse( service.in_error() )
         #logging.info("Waiting")
         service.wait([job])
+        found = False
+        for id, info in doc.filter(tags="file:output"):
+            logging.info("Found result object: %s size: %d" % (id, doc.size(info)))
+            self.assertTrue( doc.size(info) > 0 )
+            found = True
+        self.assertTrue(found)
         self.assertFalse( service.in_error() )
         self.assertIn(job.get_status(), ['ok'])

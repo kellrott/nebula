@@ -127,7 +127,7 @@
             "uuid": "5d7f9a1e-bc12-43b8-80f0-829aa18a2e66"
         },
         "4": {
-            "annotation": "",
+            "annotation": "concat_out",
             "id": 4,
             "input_connections": {
                 "input1": {
