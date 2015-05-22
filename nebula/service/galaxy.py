@@ -99,10 +99,13 @@ class GalaxyService(Service):
                     wids = []
                     for k, v in job.get_inputs().items():
                         file_path = self.docstore.get_filename(Target(v.id))
-                        logging.info("Loading FilePath: %s" % (file_path))
-
+                        file_meta = self.docstore.get(v.id)
+                        file_name = v.id
+                        if 'name' in file_meta:
+                            file_name = file_meta['name']
+                        logging.info("Loading FilePath: %s (%s) %s" % (v.id, file_name, file_path))
                         nli = self.rg.library_paste_file(library_id=library_id, library_folder_id=folder_id,
-                            name=v.id, datapath=file_path, uuid=v.uuid)
+                            name=file_name, datapath=file_path, uuid=v.uuid)
                         if 'id' not in nli:
                             raise Exception("Failed to load data: %s" % (str(nli)))
                         wids.append(nli['id'])

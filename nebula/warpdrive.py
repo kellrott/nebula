@@ -599,6 +599,7 @@ class RemoteGalaxy(object):
         if metadata is not None:
             data['extended_metadata'] = metadata
         data['filesystem_paths'] = datapath
+        logging.info("Pasting %s: %s" % (name, datapath))
         libset = self.post("/api/libraries/%s/contents" % library_id, data)
         print libset
         return libset[0]

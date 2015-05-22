@@ -16,7 +16,7 @@ class CachedDiskObjectStore(ObjectStore):
         if self.open_perms:
             os.chmod(self.cache_path, 0o777)
         self._fix_permissions(self.cache_path)
-        
+
     def _fix_permissions(self, rel_path):
         if self.open_perms:
             if os.path.isfile(rel_path):
@@ -64,7 +64,6 @@ class CachedDiskObjectStore(ObjectStore):
         return local_path
 
     def size(self, obj, extra_dir=None, extra_dir_at_root=False, alt_name=None, obj_dir=False):
-        print "Sized file", self.disk.get_filename(obj)
         return self.disk.size(obj=obj, extra_dir=extra_dir, extra_dir_at_root=extra_dir_at_root, alt_name=alt_name, obj_dir=obj_dir)
 
     def _cache_path_dir(self, obj):
