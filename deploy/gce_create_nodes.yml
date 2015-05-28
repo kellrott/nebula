@@ -1,0 +1,55 @@
+---
+
+- hosts: localhost
+  connection: local
+  vars:
+    machine_type: n1-standard-1 # default
+    image: debian-7
+    service_account_email: 564159113959-g3jvl7m8nvjl42t1q76kt48075tk1t6u@developer.gserviceaccount.com
+    pem_file: ~/.ssh/pkey.pem
+    project_id: clalansingh
+    master_flavor_id: 48bbac6f-3cd1-4d03-b12f-d2ed83b0c552
+    slave_flavor_id: dcf6d0e0-a853-4179-8dac-2675247aa4df
+    nbr_of_slaves: 2
+  tasks:
+  - name: Create a new mesos master instance
+    gce:
+      instance_names: mesos-master
+      machine_type: "{{ machine_type }}"
+      image: "{{ image }}"
+      service_account_email: "{{ service_account_email }}"
+      pem_file: "{{ pem_file }}"
+      project_id: "{{ project_id }}"
+      metadata: '{"ansible_host_groups":"mesos_masters,zookeepers"}'
+    register: master
+
+  - name: Wait for SSH to come up
+    wait_for: host={{ item.public_ip }} port=22 delay=10 timeout=60
+    with_items: master.instance_data
+
+  - name: Add host to groupname
+    add_host: name={{ item.public_ip }} groups=mesos_masters,zookeepers
+    with_items: master.instance_data
+
+  - name: Create a new mesos slave
+    gce:
+      instance_names: "{{ item }}"
+      machine_type: "{{ machine_type }}"
+      image: "{{ image }}"
+      service_account_email: "{{ service_account_email }}"
+      pem_file: "{{ pem_file }}"
+      project_id: "{{ project_id }}"
+      metadata: '{"ansible_host_groups":"mesos_slaves"}'
+    with_sequence:
+      start=0
+      end="{{ nbr_of_slaves }}"
+      format=mesos-slave%02x
+    register: slave
+
+  - name: Wait for SSH to come up
+    wait_for: host={{ item.instance_data[0].public_ip }} port=22 delay=10 timeout=60
+    with_items: slave.results
+
+  - name: Add host to groupname
+    add_host: name={{ item.instance_data[0].public_ip }} groups=mesos_slaves
+    with_items: slave.results
