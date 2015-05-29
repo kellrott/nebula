@@ -200,9 +200,11 @@ class TaskJob:
     """
 
 from galaxy import GalaxyService
+from md5_service import MD5Service
 
 __mapping__ = {
-    'Galaxy' : GalaxyService
+    'Galaxy' : GalaxyService,
+    'MD5' : MD5Service
 }
 
 def from_dict(data):

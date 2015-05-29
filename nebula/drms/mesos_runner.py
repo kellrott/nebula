@@ -22,6 +22,12 @@ import mesos.native
 from mesos.interface import mesos_pb2
 
 import nebula.drms
+import nebula.service
+
+class MesosService(nebula.service.Service):
+    def __init__(self, service):
+        self.service = service
+        super(MesosService, self).__init__("MesosService(%s)" % (service.name))
 
 class MesosDRMS(nebula.drms.DRMSWrapper):
 
@@ -48,6 +54,11 @@ class MesosDRMS(nebula.drms.DRMSWrapper):
         logging.info("Stoping Mesos Thread")
         if self.driver_thread is not None:
             self.driver_thread.stop()
+
+    def deploy_service(self, service):
+        #FIXME: Do something here
+        return MesosService(service)
+
 
 class DriverThread(threading.Thread):
     def __init__(self, driver):

@@ -34,6 +34,7 @@ class Scheduler:
     def done(self):
         return self.state == 'done'
 
+
     def activate_tasks(self, max_dags=1):
         ready_tasks = self.dags.get_tasks([READY], 1)
         if len(ready_tasks):

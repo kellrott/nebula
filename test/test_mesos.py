@@ -8,6 +8,12 @@ from nebula.warpdrive import call_docker_run, call_docker_kill, call_docker_rm
 
 import nebula.drms.mesos_runner
 import nebula.scheduler
+import nebula.service
+from nebula.target import Target
+import shutil
+from nebula.docstore import FileDocStore
+from nebula.docstore.util import sync_doc_dir
+from nebula.tasks.md5_task import MD5Task
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -25,9 +31,9 @@ CONFIG_PARENT_PORT = 15050
 MASTER_NAME = "mesos_master"
 SLAVE_NAME_BASE = "mesos_slave_%d"
 
-class TestScheduler:
-    def __init__(self):
-        pass
+
+def get_abspath(path):
+    return os.path.join(os.path.dirname(__file__), path)
 
 def get_host_ip():
     s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -97,10 +103,29 @@ class TestMesos(unittest.TestCase):
 
 
     def testMesosLaunch(self):
+        input_file_1 = Target("c39ded10-6073-11e4-9803-0800200c9a66"),
+        input_file_2 = Target("26fd12a2-9096-4af2-a989-9e2f1cb692fe")
+
+        doc = FileDocStore(file_path="./test_tmp/docstore")
+        logging.info("Adding files to object store")
+        sync_doc_dir("examples/simple_galaxy/", doc,
+            uuid_set=["c39ded10-6073-11e4-9803-0800200c9a66", "26fd12a2-9096-4af2-a989-9e2f1cb692fe"]
+        )
+
+        task_1 = MD5Task(input_file_1)
+
+
+        md5_service = nebula.service.md5_service.MD5Service(doc)
+
         sched = nebula.scheduler.Scheduler({})
         mesos = nebula.drms.mesos_runner.MesosDRMS(sched, {
             "mesos" : "%s:%s" % (self.host_ip, CONFIG_PARENT_PORT)
         })
         mesos.start()
-        time.sleep(30)
+        mesos_md5_service = mesos.deploy_service(md5_service)
+        job_1 = mesos_md5_service.submit(task_1)
+
+        print job_1
+        logging.info("Sleeping for 15")
+        time.sleep(15)
         mesos.stop()
