@@ -47,11 +47,12 @@ def get_docker_path():
     return docker_path
 
 def call_docker_run(
-    galaxy, ports={},
+    image, ports={},
     args=[], host=None, sudo=False,
     env={},
     set_user=False,
     mounts={},
+    links={},
     privledged=False,
     name=None):
 
@@ -73,8 +74,10 @@ def call_docker_run(
         cmd.extend( ["-v", "%s:%s" % (k, v)])
     if privledged:
         cmd.append("--privileged")
+    for k,v in links.items():
+        cmd.extend( ["--link", "%s:%s" % (k,v)] )
     cmd.append("-d")
-    cmd.extend( [galaxy] )
+    cmd.extend( [image] )
     cmd.extend(args)
 
     sys_env = dict(os.environ)
