@@ -13,13 +13,14 @@
 
 import os
 import json
+import time
 import logging
 import threading
 
-import mesos
-import mesos_pb2
+import mesos.interface
+import mesos.native
+from mesos.interface import mesos_pb2
 
-import nebula
 import nebula.drms
 
 class MesosDRMS(nebula.drms.DRMSWrapper):
@@ -27,7 +28,7 @@ class MesosDRMS(nebula.drms.DRMSWrapper):
     def __init__(self, scheduler, config):
         super(MesosDRMS, self).__init__(scheduler, config)
 
-        if self.config.mesos is None:
+        if "mesos" not in self.config:
             logging.error("Mesos not configured")
             return
         self.driver_thread = None
@@ -36,7 +37,7 @@ class MesosDRMS(nebula.drms.DRMSWrapper):
         self.framework.user = "" # Have Mesos fill in the current user.
         self.framework.name = "Nebula"
         ## additional authentication stuff would go here
-        self.driver = mesos.MesosSchedulerDriver(self.sched, self.framework, self.config.mesos)
+        self.driver = mesos.native.MesosSchedulerDriver(self.sched, self.framework, self.config['mesos'])
 
     def start(self):
         logging.info("Starting Mesos Thread")
@@ -59,21 +60,17 @@ class DriverThread(threading.Thread):
     def stop(self):
         self.driver.stop()
 
-class NebularMesos(mesos.Scheduler):
+class NebularMesos(mesos.interface.Scheduler):
     """
     The GridScheduler is responsible for deploying and managing child Galaxy instances using Mesos
     """
     def __init__(self, scheduler, config):
-        mesos.Scheduler.__init__(self)
+        mesos.interface.Scheduler.__init__(self)
         self.scheduler = scheduler
         self.config = config
-        self.workrepo = config.get_workrepo()
         self.services = {}
         self.active_tasks = {}
-        self.master_url = "http://%s:%d" % (self.config.host, self.config.port)
         logging.info("Starting Mesos scheduler")
-        logging.info("Mesos Resource URL %s" % (self.master_url))
-
 
     def getExecutorInfo(self):
         """
@@ -117,7 +114,7 @@ class NebularMesos(mesos.Scheduler):
         task.executor.MergeFrom(self.getExecutorInfo())
 
         if request is not None:
-            task_data = request.get_task_data(self.workrepo)
+            task_data = {} #FIXME: request.get_task_data(self.workrepo)
             print task_data
             task.data = json.dumps(task_data)
 
@@ -142,7 +139,7 @@ class NebularMesos(mesos.Scheduler):
 
         for offer in offers:
             tasks = []
-            if self.config.max_servers <= 0 or len(self.active_tasks) < self.config.max_servers:
+            if self.config.get("max_servers", 0) <= 0 or len(self.active_tasks) < self.config['max_servers']:
                 #store the offer info
                 cpu_count = 0
                 for res in offer.resources:

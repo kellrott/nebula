@@ -53,7 +53,7 @@ def call_docker_run(
     set_user=False,
     mounts={},
     links={},
-    privledged=False,
+    privledged=False,net=None,
     name=None):
 
     docker_path = get_docker_path()
@@ -74,6 +74,8 @@ def call_docker_run(
         cmd.extend( ["-v", "%s:%s" % (k, v)])
     if privledged:
         cmd.append("--privileged")
+    if net is not None:
+        cmd.extend(["--net", net])
     for k,v in links.items():
         cmd.extend( ["--link", "%s:%s" % (k,v)] )
     cmd.append("-d")

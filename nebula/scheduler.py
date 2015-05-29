@@ -16,20 +16,18 @@ import logging
 
 from nebula.dag import READY, PENDING, RUNNING, DONE
 from nebula.jobrecord import JobRecord
-from nebula.dag import TargetFile
+from nebula.target import TargetFile
+from nebula.dag import DagSet
 
 class Scheduler:
 
-    def __init__(self, dags, config):
+    def __init__(self, config):
         logging.debug("Initializing Scheduler")
-        logging.debug("Scheduling %s dags" % (len(dags.dags)))
-        self.workrepo = config.get_workrepo()
-        self.datamanager = config.get_datamanager()
         self.config = config
         self.state = 'starting'
         self.queued_jobs = []
         self.workers = {}
-        self.dags = dags
+        self.dags = DagSet()
         self.tasks = {}
         self.data_locality = {}
 
