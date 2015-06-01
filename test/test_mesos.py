@@ -2,6 +2,7 @@
 import os
 import unittest
 import logging
+from urlparse import urlparse
 import time
 import socket
 from nebula.warpdrive import call_docker_run, call_docker_kill, call_docker_rm
@@ -50,7 +51,11 @@ class TestMesos(unittest.TestCase):
             os.mkdir("test_tmp")
         self.service = None
 
-        self.host_ip = get_host_ip()
+        if 'DOCKER_HOST' in os.environ:
+            n = urlparse(os.environ['DOCKER_HOST'])
+            self.host_ip = n.netloc.split(":")[0]
+        else:
+            self.host_ip = get_host_ip()
         logging.info("Using HostIP: %s" % (self.host_ip))
 
         call_docker_run(image=MASTER_IMAGE,
@@ -124,7 +129,7 @@ class TestMesos(unittest.TestCase):
         mesos.start()
         mesos_md5_service = mesos.deploy_service(md5_service)
         job_1 = mesos_md5_service.submit(task_1)
-
+        mesos_md5_service.wait(job_1)
         print job_1
         logging.info("Sleeping for 15")
         time.sleep(15)
