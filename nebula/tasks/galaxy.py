@@ -144,14 +144,14 @@ class GalaxyWorkflowTask(Task):
             for step, step_info in workflow_data['steps'].items():
                 step_id = step_info['uuid']
                 if step_info['type'] == "tool":
-
                     step_name = None
-                    if step_info['label'] in self.tool_tags:
-                        step_name = step_info['label']
-                    if step_info['annotation'] in self.tool_tags:
-                        step_name = step_info['annotation']
-                    if step_info['uuid'] in self.tool_tags:
-                        step_name = step_info['uuid']
+                    if self.tool_tags is not None:
+                        if step_info['label'] in self.tool_tags:
+                            step_name = step_info['label']
+                        if step_info['annotation'] in self.tool_tags:
+                            step_name = step_info['annotation']
+                        if step_info['uuid'] in self.tool_tags:
+                            step_name = step_info['uuid']
                     tags = []
                     if self.tags is not None:
                         tags += self.tags
