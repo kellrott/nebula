@@ -28,6 +28,7 @@ class MesosService(nebula.service.Service):
     def __init__(self, service):
         self.service = service
         super(MesosService, self).__init__("MesosService(%s)" % (service.name))
+        self.name = "mesos:%s" % (service.name)
 
 class MesosDRMS(nebula.drms.DRMSWrapper):
 
@@ -56,8 +57,9 @@ class MesosDRMS(nebula.drms.DRMSWrapper):
             self.driver_thread.stop()
 
     def deploy_service(self, service):
-        #FIXME: Do something here
-        return MesosService(service)
+        mesos_service = MesosService(service)
+        self.sched.queue_service(mesos_service)
+        return mesos_service
 
 
 class DriverThread(threading.Thread):
@@ -71,18 +73,27 @@ class DriverThread(threading.Thread):
     def stop(self):
         self.driver.stop()
 
-class NebularMesos(mesos.interface.Scheduler):
+class NebulaMesos(mesos.interface.Scheduler):
     """
     The GridScheduler is responsible for deploying and managing child Galaxy instances using Mesos
     """
-    def __init__(self, scheduler, config):
+    def __init__(self, scheduler):
         mesos.interface.Scheduler.__init__(self)
         self.scheduler = scheduler
-        self.config = config
         self.services = {}
         self.active_tasks = {}
         logging.info("Starting Mesos scheduler")
 
+
+    """
+    API Interface Methods
+    """
+    def queue_service(self, service):
+        self.scheduler.queue_service(service)
+
+    """
+    Mesos Interface Methods
+    """
     def getExecutorInfo(self):
         """
         Build an executor request structure
@@ -97,9 +108,7 @@ class NebularMesos(mesos.interface.Scheduler):
         uri.value = uri_value
         uri.executable = True
 
-        cmd = "python ./nebula_worker.egg -w %s --storage-dir %s" % (self.config.workdir, self.config.dist_storage_dir)
-        if self.config.docker is not None:
-            cmd += " --docker %s" % (self.config.docker)
+        cmd = "python ./nebula_worker.egg -w %s " % (self.docstore.get_url())
 
         executor.command.value = cmd
         logging.info("Executor Command: %s" % cmd)
@@ -117,7 +126,7 @@ class NebularMesos(mesos.interface.Scheduler):
         if request is None:
             task_name = "%s:%s" % (offer.hostname, "system")
         else:
-            task_name = "%s:%s" % (offer.hostname, request.task_id)
+            task_name = "%s:%s" % (offer.hostname, request.name)
         task = mesos_pb2.TaskInfo()
         task.task_id.value = task_name
         task.slave_id.value = offer.slave_id.value
@@ -162,13 +171,13 @@ class NebularMesos(mesos.interface.Scheduler):
                     if res.name == 'mem':
                         mem_count = int(res.scalar.value)
 
-                work = self.scheduler.get_task(offer.slave_id.value)
-                if work is not None:
-                    logging.info("Starting work: %s" % (work))
+                service = self.scheduler.get_service()
+                if service is not None:
+                    logging.info("Starting Service: %s" % (service))
                     logging.debug("Offered %d cpus" % (cpu_count))
                     cpu_slice = 1
                     mem_slice = 1024
-                    task = self.getTaskInfo(offer, work, cpu_slice, mem_slice)
+                    task = self.getTaskInfo(offer, service, cpu_slice, mem_slice)
                     tasks.append(task)
             status = driver.launchTasks(offer.id, tasks)
 

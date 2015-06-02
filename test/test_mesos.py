@@ -98,8 +98,6 @@ class TestMesos(unittest.TestCase):
         if os.path.exists("./test_tmp/docstore"):
             shutil.rmtree("./test_tmp/docstore")
 
-        return
-
         call_docker_kill(MASTER_NAME)
         call_docker_kill(SLAVE_NAME_BASE % (0))
 
@@ -119,7 +117,6 @@ class TestMesos(unittest.TestCase):
 
         task_1 = MD5Task(input_file_1)
 
-
         md5_service = nebula.service.md5_service.MD5Service(doc)
 
         sched = nebula.scheduler.Scheduler({})
@@ -129,7 +126,7 @@ class TestMesos(unittest.TestCase):
         mesos.start()
         mesos_md5_service = mesos.deploy_service(md5_service)
         job_1 = mesos_md5_service.submit(task_1)
-        mesos_md5_service.wait(job_1)
+        mesos_md5_service.wait([job_1])
         print job_1
         logging.info("Sleeping for 15")
         time.sleep(15)

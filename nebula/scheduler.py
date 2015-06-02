@@ -26,6 +26,7 @@ class Scheduler:
         self.config = config
         self.state = 'starting'
         self.queued_jobs = []
+        self.queued_services = []
         self.workers = {}
         self.dags = DagSet()
         self.tasks = {}
@@ -34,7 +35,13 @@ class Scheduler:
     def done(self):
         return self.state == 'done'
 
+    def queue_service(self, service):
+        self.queued_services.append(service)
 
+    def get_service(self):
+        return self.queued_services.pop()
+
+    """
     def activate_tasks(self, max_dags=1):
         ready_tasks = self.dags.get_tasks([READY], 1)
         if len(ready_tasks):
@@ -125,3 +132,4 @@ class Scheduler:
         for k, v in job_record['outputs'].items():
             self.datamanager.add_location(v['uuid'], host)
         del self.tasks[task_id]
+    """
