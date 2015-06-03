@@ -1,0 +1,11 @@
+diff --git a/defaults/main.yml b/defaults/main.yml
+index 61e4db5..fe637b7 100644
+--- a/defaults/main.yml
++++ b/defaults/main.yml
+@@ -18,5 +18,5 @@ zookeeper_hostnames: "{{ mesos_hostname }}:{{ zookeeper_client_port }}"
+ mesos_zookeeper_masters: "zk://{{ zookeeper_hostnames }}/mesos"
+ 
+ # Containerizer
+-mesos_containerizers: "mesos"
++mesos_containerizers: "mesos,docker"
+ mesos_executor_timeout: "5mins"

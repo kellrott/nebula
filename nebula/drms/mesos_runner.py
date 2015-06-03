@@ -13,21 +13,29 @@
 
 import os
 import json
+import time
 import logging
 import threading
 
-import mesos
-import mesos_pb2
+import mesos.interface
+import mesos.native
+from mesos.interface import mesos_pb2
 
-import nebula
 import nebula.drms
+import nebula.service
+
+class MesosService(nebula.service.Service):
+    def __init__(self, service):
+        self.service = service
+        super(MesosService, self).__init__("MesosService(%s)" % (service.name))
+        self.name = "mesos:%s" % (service.name)
 
 class MesosDRMS(nebula.drms.DRMSWrapper):
 
     def __init__(self, scheduler, config):
         super(MesosDRMS, self).__init__(scheduler, config)
 
-        if self.config.mesos is None:
+        if "mesos" not in self.config:
             logging.error("Mesos not configured")
             return
         self.driver_thread = None
@@ -36,7 +44,7 @@ class MesosDRMS(nebula.drms.DRMSWrapper):
         self.framework.user = "" # Have Mesos fill in the current user.
         self.framework.name = "Nebula"
         ## additional authentication stuff would go here
-        self.driver = mesos.MesosSchedulerDriver(self.sched, self.framework, self.config.mesos)
+        self.driver = mesos.native.MesosSchedulerDriver(self.sched, self.framework, self.config['mesos'])
 
     def start(self):
         logging.info("Starting Mesos Thread")
@@ -47,6 +55,12 @@ class MesosDRMS(nebula.drms.DRMSWrapper):
         logging.info("Stoping Mesos Thread")
         if self.driver_thread is not None:
             self.driver_thread.stop()
+
+    def deploy_service(self, service):
+        mesos_service = MesosService(service)
+        self.sched.queue_service(mesos_service)
+        return mesos_service
+
 
 class DriverThread(threading.Thread):
     def __init__(self, driver):
@@ -59,22 +73,27 @@ class DriverThread(threading.Thread):
     def stop(self):
         self.driver.stop()
 
-class NebularMesos(mesos.Scheduler):
+class NebulaMesos(mesos.interface.Scheduler):
     """
     The GridScheduler is responsible for deploying and managing child Galaxy instances using Mesos
     """
-    def __init__(self, scheduler, config):
-        mesos.Scheduler.__init__(self)
+    def __init__(self, scheduler):
+        mesos.interface.Scheduler.__init__(self)
         self.scheduler = scheduler
-        self.config = config
-        self.workrepo = config.get_workrepo()
         self.services = {}
         self.active_tasks = {}
-        self.master_url = "http://%s:%d" % (self.config.host, self.config.port)
         logging.info("Starting Mesos scheduler")
-        logging.info("Mesos Resource URL %s" % (self.master_url))
 
 
+    """
+    API Interface Methods
+    """
+    def queue_service(self, service):
+        self.scheduler.queue_service(service)
+
+    """
+    Mesos Interface Methods
+    """
     def getExecutorInfo(self):
         """
         Build an executor request structure
@@ -89,9 +108,7 @@ class NebularMesos(mesos.Scheduler):
         uri.value = uri_value
         uri.executable = True
 
-        cmd = "python ./nebula_worker.egg -w %s --storage-dir %s" % (self.config.workdir, self.config.dist_storage_dir)
-        if self.config.docker is not None:
-            cmd += " --docker %s" % (self.config.docker)
+        cmd = "python ./nebula_worker.egg -w %s " % (self.docstore.get_url())
 
         executor.command.value = cmd
         logging.info("Executor Command: %s" % cmd)
@@ -109,7 +126,7 @@ class NebularMesos(mesos.Scheduler):
         if request is None:
             task_name = "%s:%s" % (offer.hostname, "system")
         else:
-            task_name = "%s:%s" % (offer.hostname, request.task_id)
+            task_name = "%s:%s" % (offer.hostname, request.name)
         task = mesos_pb2.TaskInfo()
         task.task_id.value = task_name
         task.slave_id.value = offer.slave_id.value
@@ -117,7 +134,7 @@ class NebularMesos(mesos.Scheduler):
         task.executor.MergeFrom(self.getExecutorInfo())
 
         if request is not None:
-            task_data = request.get_task_data(self.workrepo)
+            task_data = {} #FIXME: request.get_task_data(self.workrepo)
             print task_data
             task.data = json.dumps(task_data)
 
@@ -142,7 +159,7 @@ class NebularMesos(mesos.Scheduler):
 
         for offer in offers:
             tasks = []
-            if self.config.max_servers <= 0 or len(self.active_tasks) < self.config.max_servers:
+            if self.config.get("max_servers", 0) <= 0 or len(self.active_tasks) < self.config['max_servers']:
                 #store the offer info
                 cpu_count = 0
                 for res in offer.resources:
@@ -154,13 +171,13 @@ class NebularMesos(mesos.Scheduler):
                     if res.name == 'mem':
                         mem_count = int(res.scalar.value)
 
-                work = self.scheduler.get_task(offer.slave_id.value)
-                if work is not None:
-                    logging.info("Starting work: %s" % (work))
+                service = self.scheduler.get_service()
+                if service is not None:
+                    logging.info("Starting Service: %s" % (service))
                     logging.debug("Offered %d cpus" % (cpu_count))
                     cpu_slice = 1
                     mem_slice = 1024
-                    task = self.getTaskInfo(offer, work, cpu_slice, mem_slice)
+                    task = self.getTaskInfo(offer, service, cpu_slice, mem_slice)
                     tasks.append(task)
             status = driver.launchTasks(offer.id, tasks)
 

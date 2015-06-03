@@ -16,26 +16,32 @@ import logging
 
 from nebula.dag import READY, PENDING, RUNNING, DONE
 from nebula.jobrecord import JobRecord
-from nebula.dag import TargetFile
+from nebula.target import TargetFile
+from nebula.dag import DagSet
 
 class Scheduler:
 
-    def __init__(self, dags, config):
+    def __init__(self, config):
         logging.debug("Initializing Scheduler")
-        logging.debug("Scheduling %s dags" % (len(dags.dags)))
-        self.workrepo = config.get_workrepo()
-        self.datamanager = config.get_datamanager()
         self.config = config
         self.state = 'starting'
         self.queued_jobs = []
+        self.queued_services = []
         self.workers = {}
-        self.dags = dags
+        self.dags = DagSet()
         self.tasks = {}
         self.data_locality = {}
 
     def done(self):
         return self.state == 'done'
 
+    def queue_service(self, service):
+        self.queued_services.append(service)
+
+    def get_service(self):
+        return self.queued_services.pop()
+
+    """
     def activate_tasks(self, max_dags=1):
         ready_tasks = self.dags.get_tasks([READY], 1)
         if len(ready_tasks):
@@ -126,3 +132,4 @@ class Scheduler:
         for k, v in job_record['outputs'].items():
             self.datamanager.add_location(v['uuid'], host)
         del self.tasks[task_id]
+    """

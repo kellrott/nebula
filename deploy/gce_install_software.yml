@@ -1,0 +1,33 @@
+- name: Manage master
+  hosts: zookeepers
+  connection: ssh
+  sudo: True
+  sudo_user: root
+  roles:
+    - { role: ansible-docker, tags: ['os-tools'] }
+    - { role: ansible-mesos, mesos_version: "0.22.1", tags: ['mesos', 'platforms'], mesos_install_mode: "master", zookeeper_hostnames: "{{ groups.zookeepers | join(':' + zookeeper_client_port + ',') }}:{{ zookeeper_client_port }}" }
+  tasks:
+    - name: Add user to docker group
+      user:
+        name: ubuntu
+        append: yes
+        groups: docker
+    - name: Initialize mesos-master
+      raw: mesos init-wrapper master &
+
+- name: Manage slaves
+  hosts: mesos_slaves
+  connection: ssh
+  sudo: True
+  sudo_user: root
+  roles:
+    - { role: ansible-docker, tags: ['os-tools'] }
+    - { role: ansible-mesos, mesos_version: "0.22.1", tags: ['mesos', 'platforms'], mesos_install_mode: "slave", zookeeper_hostnames: "{{ groups.zookeepers | join(':' + zookeeper_client_port + ',') }}:{{ zookeeper_client_port }}" }
+  tasks:
+    - name: Add user to docker group
+      user:
+        name: ubuntu
+        append: yes
+        groups: docker
+    - name: Initialize mesos-slave
+      raw: mesos init-wrapper slave &
