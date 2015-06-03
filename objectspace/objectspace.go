@@ -101,9 +101,9 @@ func serverMain(myDBDir string) {
   fmt.Printf("Doc count: %d\n", docs.ApproxDocCount() )
 
   http.HandleFunc("/", mainHandler)
-  http.HandleFunc("/doc", docHandler)
+  http.HandleFunc("/api/docs", docHandler)
 
-  http.ListenAndServe(":8080", nil)
+  http.ListenAndServe(":18888", nil)
 
   // Gracefully close database
   if err := myDB.Close(); err != nil {
