@@ -9,6 +9,7 @@ import signal
 import uuid
 import subprocess
 import nebula.docstore
+from urllib2 import urlopen, URLError
 from nebula.docstore.util import sync_doc_dir
 from nebula.docstore.objectspace import ObjectSpace
 from nebula.target import Target
@@ -74,6 +75,12 @@ class DocStoreTest(unittest.TestCase):
     def testDocStore(self):
         self.os_thread = ObjectSpaceRunner()
         self.os_thread.start()
+        while True:
+            try:
+                urlopen("http://localhost:18888").read()
+                break
+            except URLError:
+                pass
         time.sleep(1)
 
         docstore = ObjectSpace("http://localhost:18888")
