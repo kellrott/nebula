@@ -4,20 +4,17 @@ import (
   "encoding/json"
   "fmt"
   "flag"
-  "github.com/HouzuoGuo/tiedot/db"
-//  "github.com/HouzuoGuo/tiedot/dberr"
   "net/http"
-  "strconv"
   "io/ioutil"
+  "github.com/boltdb/bolt"
 )
 
 
-var myDB  *db.DB
+var myDB  *bolt.DB
 
 func mainHandler(w http.ResponseWriter, r *http.Request) {
-  myDocs := myDB.Use("docs")
   var v = map[string]interface{}{
-    "doc_count" : myDocs.ApproxDocCount(),
+    "size" : myDB.Stats(),
   }
   str, _ := json.Marshal( v )
   fmt.Fprintf(w, string(str))
@@ -34,88 +31,33 @@ func Require(w http.ResponseWriter, r *http.Request, key string, val *string) bo
 }
 
 func docHandler(w http.ResponseWriter, r *http.Request) {
-  dbcol := myDB.Use("docs")
-  if dbcol == nil {
-      http.Error(w, fmt.Sprintf("Collection '%s' does not exist.", "docs"), 400)
-      return
-  }
+    w.Header().Set("Cache-Control", "must-revalidate")
+    w.Header().Set("Content-Type", "application/json")
 
-  if (r.Method == "GET") {
-      w.Header().Set("Cache-Control", "must-revalidate")
-      w.Header().Set("Content-Type", "application/json")
-      /*
-      var col, page, total string
-      if !Require(w, r, "page", &page) {
-        return
-      }
-      if !Require(w, r, "total", &total) {
-        return
-      }
-      totalPage, err := strconv.Atoi(total)
-      if err != nil || totalPage < 1 {
-        http.Error(w, fmt.Sprintf("Invalid total page number '%v'.", totalPage), 400)
-        return
-      }
-      pageNum, err := strconv.Atoi(page)
-      if err != nil || pageNum < 0 || pageNum >= totalPage {
-        http.Error(w, fmt.Sprintf("Invalid page number '%v'.", page), 400)
-        return
-      }
-      dbcol := myDB.Use("docs")
-      if dbcol == nil {
-        http.Error(w, fmt.Sprintf("Collection '%s' does not exist.", col), 400)
-        return
-      }
-      docs := make(map[string]interface{})
-      dbcol.ForEachDocInPage(pageNum, totalPage, func(id int, doc []byte) bool {
-        var docObj map[string]interface{}
-        if err := json.Unmarshal(doc, &docObj); err == nil {
-          docs[strconv.Itoa(id)] = docObj
+    if (r.Method == "GET") {
+        myDB.View(func(tx *bolt.Tx) error {
+            b := tx.Bucket([]byte("docs"))
+            b.ForEach(func(k, v []byte) error {
+                w.Write( []byte(fmt.Sprintf("{\"%s\":%s}\n", k, v ) ) )
+                return nil
+            })
+            return nil
+        })
+    } else if (r.Method == "POST") {
+        data, err := ioutil.ReadAll(r.Body)
+        fmt.Printf("%s\n", data)
+        var value map[string]interface{}
+        if err == nil && data != nil {
+            err = json.Unmarshal(data, &value)
         }
-        return true
-      })
-      resp, err := json.Marshal(docs)
-      if err != nil {
-        http.Error(w, fmt.Sprint(err), 500)
-        return
-      }
-      w.Write(resp)
-      */
 
-      docs := make(map[string]interface{})
-      dbcol.ForEachDoc(func(id int, doc []byte) bool {
-        var docObj map[string]interface{}
-        if err := json.Unmarshal(doc, &docObj); err == nil {
-          docs[strconv.Itoa(id)] = docObj
-        }
-        return true
-      })
-      resp, err := json.Marshal(docs)
-      if err != nil {
-        http.Error(w, fmt.Sprint(err), 500)
-        return
+        myDB.Update(func(tx *bolt.Tx) error {
+            var bucket = tx.Bucket([]byte("docs"))
+            newStr, _ := json.Marshal(value)
+            bucket.Put([]byte(value["uuid"].(string)), []byte(newStr))
+            return nil
+        })
       }
-      w.Write(resp)
-  } else if (r.Method == "POST") {
-    data, err := ioutil.ReadAll(r.Body)
-    fmt.Printf("%s\n", data)
-    var value map[string]interface{}
-    if err == nil && data != nil {
-        err = json.Unmarshal(data, &value)
-    }
-    fmt.Printf("%s\n", value)
-    //docID := db.StrHash(value["uuid"].(string))
-    //err = dbcol.Update(docID, value)
-    docID, err := dbcol.Insert(value)
-    if err != nil {
-        panic(err)
-    }
-    var v = map[string]interface{}{
-      "_id" : docID,
-    }
-    str, _ := json.Marshal( v )
-    fmt.Fprintf(w, string(str))
-  }
 }
 
 func stringInSlice(a string, list []string) bool {
@@ -129,20 +71,19 @@ func stringInSlice(a string, list []string) bool {
 
 func serverMain(myDBDir string) {
 
-  db, err := db.OpenDB(myDBDir)
+  db, err := bolt.Open(myDBDir, 0644, nil)
   myDB = db
   if err != nil {
     panic(err)
   }
 
-  if (!stringInSlice("docs", myDB.AllCols())) {
-    if err := myDB.Create("docs"); err != nil {
-      panic(err)
+  err = db.Update(func(tx *bolt.Tx) error {
+    _, err := tx.CreateBucketIfNotExists([]byte("docs"))
+    if err != nil {
+        return err
     }
-  }
-
-  docs := myDB.Use("docs")
-  fmt.Printf("Doc count: %d\n", docs.ApproxDocCount() )
+    return nil
+  })
 
   http.HandleFunc("/", mainHandler)
   http.HandleFunc("/api/docs", docHandler)
