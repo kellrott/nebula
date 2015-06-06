@@ -38,7 +38,17 @@ func docHandler(w http.ResponseWriter, r *http.Request) {
         myDB.View(func(tx *bolt.Tx) error {
             b := tx.Bucket([]byte("docs"))
             b.ForEach(func(k, v []byte) error {
-                w.Write( []byte(fmt.Sprintf("{\"%s\":%s}\n", k, v ) ) )
+                var vdoc map[string]interface{}
+                json.Unmarshal(v, &vdoc)
+                filter := true
+                for fk, fv := range r.URL.Query() {
+                    if (vdoc[fk] != fv[0]) {
+                        filter = false
+                    }
+                }
+                if (filter) {
+                    w.Write( []byte(fmt.Sprintf("{\"%s\":%s}\n", k, v ) ) )
+                }
                 return nil
             })
             return nil

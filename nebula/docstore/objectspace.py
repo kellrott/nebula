@@ -23,7 +23,9 @@ class ObjectSpace(DocStore):
         return response.read()
 
     def filter(self, **kwds):
-        results = urlopen( urljoin(self.server_url, "/api/docs") )
+        params = "&".join( "%s=%s" % (k,v) for k,v in kwds.items() )
+        req_url = urljoin(self.server_url, "/api/docs?%s" % (params))
+        results = urlopen( req_url )
         for line in results:
             for k, v in json.loads(line).items():
                 yield k, v

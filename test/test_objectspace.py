@@ -85,7 +85,7 @@ class DocStoreTest(unittest.TestCase):
 
         docstore = ObjectSpace("http://localhost:18888")
 
-        test_records = []
+        test_records = {}
         for i in range(10):
             t = {
                 "uuid" : str(uuid.uuid4()),
@@ -93,10 +93,20 @@ class DocStoreTest(unittest.TestCase):
                 "value_1" : "the first value"
 
             }
-            test_records.append(t)
+            test_records[t['uuid']] = t
 
-        for t in test_records:
+        for t in test_records.values():
             docstore.put(t['uuid'], t)
+
+        
+        for id, doc in docstore.filter():
+            self.assertIn(id, test_records)
+        
+        found_count = 0
+        for id, doc in docstore.filter(name="testing_record_5"):
+            self.assertEqual(doc['name'], "testing_record_5")
+            found_count += 1
+        self.assertEqual(found_count, 1)
 
         """
         sync_doc_dir(get_abspath("../examples/simple_galaxy/"), docstore,
@@ -104,8 +114,6 @@ class DocStoreTest(unittest.TestCase):
         )
         """
 
-        for id, doc in docstore.filter():
-            print id, doc
 
         """
         docstore = nebula.docstore.from_url(get_abspath("../test_tmp/docstore"))
