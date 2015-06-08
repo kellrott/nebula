@@ -7,14 +7,21 @@ import (
   "net/http"
   "io/ioutil"
   "github.com/boltdb/bolt"
+  "os"
+  "io"
+  "path"
 )
 
+type ObjectSpace struct {
+    DB *bolt.DB
+    BaseDir string
+}
 
-var myDB  *bolt.DB
+var space *ObjectSpace
 
 func mainHandler(w http.ResponseWriter, r *http.Request) {
   var v = map[string]interface{}{
-    "size" : myDB.Stats(),
+    "size" : space.DB.Stats(),
   }
   str, _ := json.Marshal( v )
   fmt.Fprintf(w, string(str))
@@ -35,7 +42,7 @@ func docHandler(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
 
     if (r.Method == "GET") {
-        myDB.View(func(tx *bolt.Tx) error {
+        space.DB.View(func(tx *bolt.Tx) error {
             b := tx.Bucket([]byte("docs"))
             b.ForEach(func(k, v []byte) error {
                 var vdoc map[string]interface{}
@@ -61,13 +68,38 @@ func docHandler(w http.ResponseWriter, r *http.Request) {
             err = json.Unmarshal(data, &value)
         }
 
-        myDB.Update(func(tx *bolt.Tx) error {
+        space.DB.Update(func(tx *bolt.Tx) error {
             var bucket = tx.Bucket([]byte("docs"))
             newStr, _ := json.Marshal(value)
             bucket.Put([]byte(value["uuid"].(string)), []byte(newStr))
             return nil
         })
       }
+}
+
+func fileHandler(w http.ResponseWriter, r *http.Request) {
+    fmt.Printf("Getting file: %s\n", r.URL.Path)
+    if r.Method == "GET" {
+        
+    } else if r.Method == "POST" {
+        fileId := r.URL.Path[len("/api/files/"):]
+        r.ParseMultipartForm(32 << 20)
+        file, handler, err := r.FormFile("file")
+        if err != nil {
+            fmt.Println(err)
+            return
+        }
+        defer file.Close()
+        fmt.Fprintf(w, "%v", handler.Header)
+        f, err := os.OpenFile(path.Join(space.BaseDir, fileId), os.O_WRONLY|os.O_CREATE, 0666)
+        if err != nil {
+            fmt.Println(err)
+            return
+        }
+        defer f.Close()
+        io.Copy(f, file)
+   }
+
 }
 
 func stringInSlice(a string, list []string) bool {
@@ -80,30 +112,36 @@ func stringInSlice(a string, list []string) bool {
 }
 
 func serverMain(myDBDir string) {
-
-  db, err := bolt.Open(myDBDir, 0644, nil)
-  myDB = db
-  if err != nil {
-    panic(err)
-  }
-
-  err = db.Update(func(tx *bolt.Tx) error {
-    _, err := tx.CreateBucketIfNotExists([]byte("docs"))
+    
+    db, err := bolt.Open(myDBDir, 0644, nil)
     if err != nil {
-        return err
+        panic(err)
     }
-    return nil
-  })
+    space = new(ObjectSpace)
+    space.DB = db
+    space.BaseDir = fmt.Sprintf("%s.files", myDBDir)
+    if _, err := os.Stat(space.BaseDir); err != nil {
+        os.Mkdir(space.BaseDir, 0744)
+    }
+    err = db.Update(func(tx *bolt.Tx) error {
+        _, err := tx.CreateBucketIfNotExists([]byte("docs"))
+        if err != nil {
+            return err
+        }
+        return nil
+    })
 
-  http.HandleFunc("/", mainHandler)
-  http.HandleFunc("/api/docs", docHandler)
 
-  http.ListenAndServe(":18888", nil)
-  fmt.Printf("Closing Server")
-  // Gracefully close database
-  if err := myDB.Close(); err != nil {
-    panic(err)
-  }
+    http.HandleFunc("/", mainHandler)
+    http.HandleFunc("/api/docs", docHandler)
+    http.HandleFunc("/api/files/", fileHandler)
+
+    http.ListenAndServe(":18888", nil)
+    fmt.Printf("Closing Server")
+    // Gracefully close database
+    if err := space.DB.Close(); err != nil {
+        panic(err)
+    }
 }
 
 
