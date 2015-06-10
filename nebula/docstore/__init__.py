@@ -154,10 +154,12 @@ class FileDocStore(DocStore):
                     if k not in meta:
                         match = False
                     else:
-                        if isinstance(meta[k], basestring) and meta[k] != v:
-                            match = False
-                        elif v not in meta[k]:
-                            match = False
+                        if hasattr(v, "__iter__"):
+                            if v not in meta[k]:
+                                match = False
+                        else:
+                            if meta[k] != v:
+                                match = False
                 if match:
                     yield doc_id, TargetDict(meta)
 
