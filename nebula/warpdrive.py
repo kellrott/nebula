@@ -563,6 +563,9 @@ class RemoteGalaxy(object):
     def get_history(self, history):
         return self.get("/api/histories/%s" % (history))
 
+    def get_history_contents(self, history):
+        return self.get("/api/histories/%s/contents?details=all" % (history))
+
     def get_provenance(self, history, hda, follow=False):
         if follow:
             return self.get("/api/histories/%s/contents/%s/provenance" % (history, hda), {"follow" : True})
