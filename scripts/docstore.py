@@ -39,21 +39,24 @@ def run_errors(docstore):
             if 'provenance' in entry:
                 print "tool:", entry['provenance']['tool_id']
                 print "-=-=-=-=-=-=-"
-            #print entry['job']['stdout']
+            print entry['job']['stdout']
             print "-------------"
             print entry['job']['stderr']
             print "-=-=-=-=-=-=-"
 
 
-def run_ls(docstore, size=False):
+def run_ls(docstore, size=False, extra=[]):
     doc = FileDocStore(file_path=docstore)
 
     for id, entry in doc.filter():
         #if doc.size(entry) > 0:
+            extra = []
+            for e in args.extra:
+                extra.append( str(entry.get(e,"")) )
             if size:
-                print id, entry.get('name', id), doc.size(entry)
+                print id, entry.get('name', id), doc.size(entry), " ".join(extra)
             else:
-                print id, entry.get('name', id)
+                print id, entry.get('name', id), " ".join(extra)
 
 def run_query(docstore, fields, size, filters):
     doc = FileDocStore(file_path=docstore)
@@ -74,7 +77,7 @@ def run_query(docstore, fields, size, filters):
             size_value = doc.size(Target(uuid=entry['uuid']))
         else:
             size_value = ""
-
+        
         print size_value, json.dumps(line)
 
 
@@ -97,6 +100,7 @@ if __name__ == "__main__":
 
     parser_ls = subparsers.add_parser('ls')
     parser_ls.add_argument("-s", "--size", action="store_true", default=False)
+    parser_ls.add_argument("-e", "--extra", action="append", default=[])
     parser_ls.set_defaults(func=run_ls)
 
     parser_query = subparsers.add_parser('query')
