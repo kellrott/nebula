@@ -155,7 +155,7 @@ class FileDocStore(DocStore):
                         match = False
                     else:
                         if hasattr(v, "__iter__"):
-                            if v not in meta[k]:
+                            if meta[k] not in v:
                                 match = False
                         else:
                             if meta[k] != v:
