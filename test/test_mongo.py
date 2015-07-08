@@ -90,4 +90,8 @@ class DocStoreTest(unittest.TestCase):
             found_count += 1
         self.assertEqual(found_count, 1)
 
+        sync_doc_dir(get_abspath("../examples/simple_galaxy/"), docstore,
+            uuid_set=["c39ded10-6073-11e4-9803-0800200c9a66", "26fd12a2-9096-4af2-a989-9e2f1cb692fe"]
+        )
+
     
