@@ -3,7 +3,7 @@ import json
 from urllib2 import urlopen, Request
 from urlparse import urljoin
 from nebula.docstore import DocStore
-
+import requests
 
 class ObjectSpace(DocStore):
     """
@@ -31,7 +31,12 @@ class ObjectSpace(DocStore):
                 yield k, v
 
     def exists(self, obj, **kwds):
-        raise Exception("Not Implemented")
+        req_url = urljoin(self.server_url, "/api/files/%s" % (obj.id))
+        results = urlopen( req_url )
+        meta = json.loads(results.read())
+        if 'error' in meta or 'id' not in meta:
+            return False
+        return meta['id'] == obj.id
 
     def file_ready(self, obj, **kwds):
         raise Exception("Not Implemented")
@@ -55,7 +60,9 @@ class ObjectSpace(DocStore):
         raise Exception("Not Implemented")
 
     def update_from_file(self, obj, file_name=None, create=False, **kwds):
-        raise Exception("Not Implemented")
+        with open(file_name) as handle:
+            req_url = urljoin(self.server_url, "/api/files/%s" % (obj.id))
+            rdst = requests.post(req_url, files={'file': handle})
 
     def get_object_url(self, obj, **kwds):
         raise Exception("Not Implemented")

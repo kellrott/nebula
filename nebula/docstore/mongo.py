@@ -1,6 +1,7 @@
 
 import json
 import pymongo
+import gridfs
 from nebula.docstore import DocStore
 
 class MongoStore(DocStore):
@@ -15,6 +16,7 @@ class MongoStore(DocStore):
         self.db_name = "docstore"
         self.db = client[self.db_name]
         self.doc_collection = self.db['docs']
+        self.grid = gridfs.GridFS(self.db)
         
 
     def get(self, id):
@@ -29,7 +31,7 @@ class MongoStore(DocStore):
             yield doc['_id'], doc
 
     def exists(self, obj, **kwds):
-        raise Exception("Not Implemented")
+        return self.grid.exists(obj.id)
 
     def file_ready(self, obj, **kwds):
         raise Exception("Not Implemented")
@@ -53,8 +55,15 @@ class MongoStore(DocStore):
         raise Exception("Not Implemented")
 
     def update_from_file(self, obj, file_name=None, create=False, **kwds):
-        raise Exception("Not Implemented")
-
+        nf = self.grid.new_file(_id=obj.id, chunk_size=5242880)
+        with open(file_name) as in_file:
+            while 1:
+                chunk = in_file.read(1048576)
+                if not chunk:
+                    break
+                nf.write(chunk)
+        nf.close()
+        
     def get_object_url(self, obj, **kwds):
         raise Exception("Not Implemented")
 
