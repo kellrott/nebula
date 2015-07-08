@@ -10,6 +10,9 @@ import uuid
 import subprocess
 from urlparse import urlparse
 
+import pymongo
+import pymongo.errors
+
 import nebula.docstore
 from urllib2 import urlopen, URLError
 from nebula.docstore.util import sync_doc_dir
@@ -54,6 +57,15 @@ class DocStoreTest(unittest.TestCase):
             name="nebula_test_mongo"
             )
         self.mongo_url = "mongodb://%s:27017" % (self.host_ip)
+        time.sleep(10)
+        for i in range(10):
+            try:
+                logging.info("Contacting: %s" % (self.mongo_url))
+                client = pymongo.MongoClient(self.mongo_url)
+                return
+            except pymongo.errors.ConnectionFailure:
+                time.sleep(3)
+        raise Exception("Unable to contact mongo db")
         
     def stop_mongo(self):
         call_docker_rm(
