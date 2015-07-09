@@ -1,17 +1,20 @@
 
 import os
 import unittest
+import shutil
 import logging
 from urlparse import urlparse
 import time
 import socket
+
+import nbtest_utils
+
 from nebula.warpdrive import call_docker_run, call_docker_kill, call_docker_rm
 
 import nebula.drms.mesos_runner
 import nebula.scheduler
 import nebula.service
 from nebula.target import Target
-import shutil
 from nebula.docstore import FileDocStore
 from nebula.docstore.util import sync_doc_dir
 from nebula.tasks.md5_task import MD5Task
@@ -26,8 +29,10 @@ logging.basicConfig(level=logging.DEBUG)
 MASTER_IMAGE="mesosphere/mesos-master:0.22.1-1.0.ubuntu1404"
 SLAVE_IMAGE="mesosphere/mesos-slave:0.22.1-1.0.ubuntu1404"
 
+CONFIG_EXISTING_MESOS = "127.0.1.1:5050"
 CONFIG_SUDO = False
 CONFIG_PARENT_PORT = 15050
+
 
 MASTER_NAME = "mesos_master"
 SLAVE_NAME_BASE = "mesos_slave_%d"
@@ -50,7 +55,17 @@ class TestMesos(unittest.TestCase):
         if not os.path.exists("./test_tmp"):
             os.mkdir("test_tmp")
         self.service = None
-
+        if CONFIG_EXISTING_MESOS is not None:
+            self.setExistingMesos(CONFIG_EXISTING_MESOS)
+        else:
+            self.setupDockeredMesos()
+        
+        
+    
+    def setExistingMesos(self, addr):
+        self.host_ip = addr
+    
+    def setupDockeredMesos(self):
         if 'DOCKER_HOST' in os.environ:
             n = urlparse(os.environ['DOCKER_HOST'])
             self.host_ip = n.netloc.split(":")[0]
@@ -85,7 +100,9 @@ class TestMesos(unittest.TestCase):
             #    "mesos_master" : "mesos_master"
             #},
             #args = [ "--master=mesos_master:5050" ]
-            args = ["--master=%s:%s" % (self.host_ip,CONFIG_PARENT_PORT) ]
+            args = ["--master=%s:%s" % (self.host_ip,CONFIG_PARENT_PORT) ],
+            ports = { 15051 : 5050 },
+            mounts = { "/var/run/docker.sock" : "/var/run/docker.sock" }
         )
 
 
@@ -121,7 +138,8 @@ class TestMesos(unittest.TestCase):
 
         sched = nebula.scheduler.Scheduler({})
         mesos = nebula.drms.mesos_runner.MesosDRMS(sched, {
-            "mesos" : "%s:%s" % (self.host_ip, CONFIG_PARENT_PORT)
+            "mesos" : "%s:%s" % (self.host_ip, CONFIG_PARENT_PORT),
+            "docstore" : doc.get_url()
         })
         mesos.start()
         mesos_md5_service = mesos.deploy_service(md5_service)

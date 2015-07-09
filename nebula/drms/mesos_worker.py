@@ -12,8 +12,13 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-import mesos
-import mesos_pb2
+
+try:
+    from pesos.executor import PesosExecutorDriver as MesosExecutorDriver
+except ImportError:
+    from mesos.native import MesosExecutorDriver
+
+from mesos.interface import Executor
 
 from argparse import ArgumentParser
 import sys
@@ -32,7 +37,7 @@ import hashlib
 import shutil
 from glob import glob
 
-from nebula.service import TaskJob, GalaxyService, ShellService
+from nebula.service import TaskJob, GalaxyService
 
 logging.basicConfig(level=logging.INFO)
 
@@ -50,13 +55,14 @@ class MesosJob(TaskJob):
     def set_running(self):
         logging.info("Running Nebula job: %s" % (self.task.task_id.value))
         nebula_task_id = None
-        try:
-            nebula_task_id = str(self.task_data['task_id'])
-            update = mesos_pb2.TaskStatus()
-            update.task_id.value = self.task.task_id.value
-            update.state = mesos_pb2.TASK_RUNNING
-            update.data = nebula_task_id
-            self.driver.sendStatusUpdate(update)
+        #try:
+        nebula_task_id = str(self.task_data['task_id'])
+        update = mesos_pb2.TaskStatus()
+        update.task_id.value = self.task.task_id.value
+        update.state = mesos_pb2.TASK_RUNNING
+        update.data = nebula_task_id
+        self.driver.sendStatusUpdate(update)
+        #except 
     
     def set_done(self):
         logging.info("Finished Nebula job: %s" % (self.task.task_id.value))
@@ -74,9 +80,9 @@ class MesosJob(TaskJob):
         self.driver.sendStatusUpdate(update)
 
 
-class NebulaExecutor(mesos.Executor):
+class NebulaExecutor(Executor):
     def __init__(self, config):
-        mesos.Executor.__init__(self)
+        Executor.__init__(self)
         self.config = config
         self.services = {}
 
@@ -112,12 +118,7 @@ class NebulaExecutor(mesos.Executor):
     def error(self, driver, code, message):
         print "Error: %s" % message
 
-if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument("-w", "--workdir", default="/tmp")
-    parser.add_argument("--docker", default=None)
-    parser.add_argument("--storage-dir", default="/tmp/nebula-store")
-    args = parser.parse_args()
-    logging.info( "Starting Workflow Watcher" )
-    executor = NebulaExecutor(args)
-    mesos.MesosExecutorDriver(executor).run()
+
+def run_worker(config):
+    executor = NebulaExecutor(config)
+    MesosExecutorDriver(executor).run()

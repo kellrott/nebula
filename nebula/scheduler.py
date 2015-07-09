@@ -39,8 +39,9 @@ class Scheduler:
         self.queued_services.append(service)
 
     def get_service(self):
-        return self.queued_services.pop()
-
+        if len(self.queued_services):
+            return self.queued_services.pop()
+        return None
     """
     def activate_tasks(self, max_dags=1):
         ready_tasks = self.dags.get_tasks([READY], 1)

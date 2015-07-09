@@ -73,27 +73,6 @@ def action_manage(args):
         web.stop()
         drms.stop()
 
-def action_tree(args):
-    config = Config(
-        mesos=args.mesos,
-        port=args.port,
-        host=args.server,
-        docker_clean = args.docker_clean,
-        basedir=os.path.dirname(args.buildfile)
-    )
-    if not args.resume:
-        build = NebulaCompile()
-        if build.compile(args.buildfile):
-            sys.stderr.write("Compile Failure")
-            sys.exit(1)
-        dagset = build.to_dags()
-        dagset.save(config.get_schema_dir())
-    else:
-        dagset = DagSet.load(config.get_schema_dir())
-
-    for a in dagset.dags.values():
-        print "DAG:", a
-
 def action_run(args):
 
     config = ServiceConfig()
@@ -129,6 +108,11 @@ def action_run(args):
             service.stop()    
     return error
 
+def action_worker(args):
+    import nebula.drms.mesos_worker
+    nebula.drms.mesos_worker.run_worker(vars(args))
+    
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(title="subcommand")
@@ -140,9 +124,6 @@ if __name__ == "__main__":
     parser_run.add_argument("service_file")
     parser_run.add_argument("task_file")
     parser_run.set_defaults(func=action_run)
-
-    parser_tree = subparsers.add_parser('tree')
-    parser_tree.set_defaults(func=action_tree)
 
     parser_manage = subparsers.add_parser('manage')
     parser_manage.set_defaults(func=action_manage)
@@ -161,8 +142,12 @@ if __name__ == "__main__":
     parser_manage.add_argument("--docker", default=None)
 
     parser_manage.add_argument("builddir", nargs="?", default=None)
-    args = parser.parse_args()
 
+    parser_worker = subparsers.add_parser('worker')
+    parser_worker.add_argument("-v", action="store_true", default=False)
+    parser_worker.set_defaults(func=action_worker)
+
+    args = parser.parse_args()
 
     if args.v:
         logging.basicConfig(level=logging.DEBUG)

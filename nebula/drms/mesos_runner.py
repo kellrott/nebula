@@ -23,6 +23,7 @@ from mesos.interface import mesos_pb2
 
 import nebula.drms
 import nebula.service
+import nebula.docstore
 
 class MesosService(nebula.service.Service):
     def __init__(self, service):
@@ -39,7 +40,7 @@ class MesosDRMS(nebula.drms.DRMSWrapper):
             logging.error("Mesos not configured")
             return
         self.driver_thread = None
-        self.sched = NebularMesos(scheduler, config)
+        self.sched = NebulaMesos(scheduler, config)
         self.framework = mesos_pb2.FrameworkInfo()
         self.framework.user = "" # Have Mesos fill in the current user.
         self.framework.name = "Nebula"
@@ -77,11 +78,15 @@ class NebulaMesos(mesos.interface.Scheduler):
     """
     The GridScheduler is responsible for deploying and managing child Galaxy instances using Mesos
     """
-    def __init__(self, scheduler):
+    def __init__(self, scheduler, config):
         mesos.interface.Scheduler.__init__(self)
         self.scheduler = scheduler
         self.services = {}
         self.active_tasks = {}
+        self.config = config
+        self.worker_image = config.get('worker_image', 'nebula')
+        self.docstore = nebula.docstore.from_url(self.config['docstore'])
+        print "NebulaMesos config: %s" % (config)
         logging.info("Starting Mesos scheduler")
 
 
@@ -99,16 +104,19 @@ class NebulaMesos(mesos.interface.Scheduler):
         Build an executor request structure
         """
 
-        uri_value = "%s/resources/nebula_worker.egg" % (self.master_url)
-        logging.info("in getExecutorInfo, setting execPath = " + uri_value)
+        logging.info("in getExecutorInfo, setting worker image = " + self.worker_image)
         executor = mesos_pb2.ExecutorInfo()
         executor.executor_id.value = "nebula_worker"
-
-        uri = executor.command.uris.add()
-        uri.value = uri_value
-        uri.executable = True
-
-        cmd = "python ./nebula_worker.egg -w %s " % (self.docstore.get_url())
+        
+        container = mesos_pb2.ContainerInfo()
+        container.type = container.DOCKER
+        docker = mesos_pb2.ContainerInfo.DockerInfo()
+        docker.network = docker.BRIDGE
+        docker.image = self.worker_image
+        container.docker.MergeFrom(docker)
+        executor.container.MergeFrom(container)
+        
+        cmd = "python /opt/bin/nebula worker"
 
         executor.command.value = cmd
         logging.info("Executor Command: %s" % cmd)
