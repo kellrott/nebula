@@ -27,7 +27,9 @@ class MongoStore(DocStore):
         self.doc_collection.insert(doc)
 
     def filter(self, **kwds):
-        for doc in self.doc_collection.find(filter=kwds):
+        print "KWDS", kwds
+        for doc in self.doc_collection.find(kwds):
+            print kwds, doc
             yield doc['_id'], doc
 
     def exists(self, obj, **kwds):
