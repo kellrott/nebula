@@ -13,10 +13,10 @@
 # the License.
 
 
-try:
-    from pesos.executor import PesosExecutorDriver as MesosExecutorDriver
-except ImportError:
-    from mesos.native import MesosExecutorDriver
+#try:
+#    from pesos.executor import PesosExecutorDriver as MesosExecutorDriver
+#except ImportError:
+from mesos.native import MesosExecutorDriver
 
 from mesos.interface import Executor
 
@@ -38,6 +38,7 @@ import shutil
 from glob import glob
 
 from nebula.service import TaskJob, GalaxyService
+from nebula.service import from_dict as service_from_dict
 
 logging.basicConfig(level=logging.INFO)
 
@@ -45,12 +46,12 @@ uuid4hex = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 
 
 class MesosJob(TaskJob):
-    def __init__(self, driver, task, config):
+    def __init__(self, driver, task):
         self.driver = driver
         self.task = task
-        self.config = config
         self.task_data = json.loads(self.task.data)
-        self.service_name = self.task_data['service']
+        logging.debug("TaskData: %s" % (self.task_data))
+        self.service_type = self.task_data['service_type']
 
     def set_running(self):
         logging.info("Running Nebula job: %s" % (self.task.task_id.value))
@@ -82,21 +83,25 @@ class MesosJob(TaskJob):
 
 class NebulaExecutor(Executor):
     def __init__(self, config):
+        logging.debug("Initing Executor")
         Executor.__init__(self)
         self.config = config
         self.services = {}
+        logging.debug("Executor starting")
 
-    def init(self, driver, arg):
-        logging.info("Starting task worker")
+    #def init(self, driver, arg):
+    #    logging.info("Starting task worker")
 
     def launchTask(self, driver, task):
         logging.debug( "Running task %s" % task.task_id.value )
-        job = TaskJob(driver, task, self.config)
-        if job.service_name not in self.services:
-            s = service_map[job.service_name]()
-            self.services[job.service_name] = s
+        job = MesosJob(driver, task)
+        service_name = job.service_type
+        logging.debug( "Service: %s" % (service_name) )
+        if service_name not in self.services:
+            s = service_from_dict(job.task_data)
+            self.services[service_name] = s
             s.start()
-        self.services[job.service_name].submit(job)
+        self.services[service_name].submit(job)
 
     def killTask(self, driver, task_id):
         logging.debug( "Killing task %s" % task_id.value )
@@ -116,9 +121,11 @@ class NebulaExecutor(Executor):
         #cleanup()
 
     def error(self, driver, code, message):
-        print "Error: %s" % message
+        logging.error( "Error: %s" % message )
 
 
 def run_worker(config):
     executor = NebulaExecutor(config)
-    MesosExecutorDriver(executor).run()
+    driver = MesosExecutorDriver(executor)
+    logging.info("Starting Mesos Executor")
+    driver.run()

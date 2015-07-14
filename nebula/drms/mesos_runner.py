@@ -30,6 +30,9 @@ class MesosService(nebula.service.Service):
         self.service = service
         super(MesosService, self).__init__("MesosService(%s)" % (service.name))
         self.name = "mesos:%s" % (service.name)
+    
+    def to_dict(self):
+        return self.service.to_dict()
 
 class MesosDRMS(nebula.drms.DRMSWrapper):
 
@@ -108,6 +111,7 @@ class NebulaMesos(mesos.interface.Scheduler):
         executor = mesos_pb2.ExecutorInfo()
         executor.executor_id.value = "nebula_worker"
         
+        """
         container = mesos_pb2.ContainerInfo()
         container.type = container.DOCKER
         docker = mesos_pb2.ContainerInfo.DockerInfo()
@@ -116,14 +120,17 @@ class NebulaMesos(mesos.interface.Scheduler):
         container.docker.MergeFrom(docker)
         executor.container.MergeFrom(container)
         
-        cmd = "python /opt/bin/nebula worker"
-
+        cmd = "python /opt/bin/nebula worker -v"
+        """
+        
+        cmd = "bash /home/kellrott/workspaces/nebula/bin/nebula.sh worker -v"
+        
         executor.command.value = cmd
         logging.info("Executor Command: %s" % cmd)
 
-        env_path = executor.command.environment.variables.add()
-        env_path.name = "PATH"
-        env_path.value = os.environ['PATH']
+        #env_path = executor.command.environment.variables.add()
+        #env_path.name = "PATH"
+        #env_path.value = os.environ['PATH']
 
         executor.name = "nebula_worker"
         executor.source = "nebula_farm"
@@ -142,8 +149,8 @@ class NebulaMesos(mesos.interface.Scheduler):
         task.executor.MergeFrom(self.getExecutorInfo())
 
         if request is not None:
-            task_data = {} #FIXME: request.get_task_data(self.workrepo)
-            print task_data
+            print request
+            task_data = request.to_dict()
             task.data = json.dumps(task_data)
 
         cpus = task.resources.add()

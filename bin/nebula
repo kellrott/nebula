@@ -109,7 +109,9 @@ def action_run(args):
     return error
 
 def action_worker(args):
+    logging.info("Loading Mesos Worker Code")
     import nebula.drms.mesos_worker
+    logging.info("Starting Mesos Worker")
     nebula.drms.mesos_worker.run_worker(vars(args))
     
 

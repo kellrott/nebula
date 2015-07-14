@@ -18,6 +18,7 @@ RUN tar xvzf mesos-0.22.1.tar.gz && cd mesos-0.22.1 \
 
 RUN  mkdir /opt/python
 ENV  PYTHONPATH  /opt/python
+ENV  LD_LIBRARY_PATH /opt/mesos/lib
 ADD nebula /opt/python/nebula
 ADD galaxy /opt/python/galaxy
 ADD bin /opt/bin
