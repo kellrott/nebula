@@ -158,8 +158,7 @@ class GalaxyService(Service):
         run_down(name=self.config['name'], rm=True, sudo=self.config.get("sudo", False), **down_config)
 
     def status(self, job_id):
-        s = super(GalaxyService, self).status(job_id)
-        if s == 'active':
+        if job_id in self.active:
             if self.rg is not None:
                 job = self.get_job(job_id)
                 if job.state == 'error':
@@ -175,7 +174,9 @@ class GalaxyService(Service):
                     job.state = "ok"
                 return job.state
             return "waiting"
-        return s
+        elif job_id in self.queue:
+            return "waiting"
+        return "unknown"
 
     def store_data(self, object, doc_store):
         meta = self.rg.get_dataset(object['id'], object['src'])

@@ -54,45 +54,53 @@ class MesosJob(threading.Thread):
         self.mesos_task_data = json.loads(self.mesos_task.data)
         self.nebula_service_data = self.mesos_task_data['service']
         self.nebula_task_data = self.mesos_task_data['task']
+        self.job_id = self.mesos_task_data['job_id']
         logging.debug("TaskData: %s" % (json.dumps(self.mesos_task_data, indent=4)))
         self.service_type = self.nebula_service_data['service_type']
 
     def set_running(self):
-        logging.info("Running Nebula job: %s" % (self.mesos_task.task_id.value))
+        logging.info("Running Mesos job: %s (Nebula Job %s)" % (self.mesos_task.task_id.value, self.job_id))
         nebula_task_id = None
         #try:
-        nebula_task_id = str(self.nebula_task_data['task_id'])
         update = mesos_pb2.TaskStatus()
         update.task_id.value = self.mesos_task.task_id.value
         update.state = mesos_pb2.TASK_RUNNING
-        update.data = nebula_task_id
+        update.data = json.dumps( { "job_id" : self.job_id } )
         self.driver.sendStatusUpdate(update)
         #except 
     
     def set_done(self):
-        logging.info("Finished Nebula job: %s" % (self.task.task_id.value))
+        logging.info("Finished Nebula job: %s" % (self.mesos_task.task_id.value))
         update = mesos_pb2.TaskStatus()
         update.task_id.value = self.mesos_task.task_id.value
-        update.data = str(self.mesos_task_data['task_id'])
+        update.data = json.dumps( { "job_id" : self.job_id } )
         update.state = mesos_pb2.TASK_FINISHED
         self.driver.sendStatusUpdate(update)
     
-    def set_error(self):
+    def set_error(self, msg):
         update = mesos_pb2.TaskStatus()
         update.task_id.value = self.mesos_task.task_id.value
-        update.data = str(self.mesos_task_data['task_id'])
+        update.data = json.dumps( { "job_id" : self.job_id, "error_message" : msg } )
         update.state = mesos_pb2.TASK_FAILED
         self.driver.sendStatusUpdate(update)
     
     def run(self):
-        logging.debug( "Service: %s" % (self.service_type) )
-        service = service_from_dict(self.nebula_service_data)
-        service.start()
-        task = task_from_dict(self.nebula_task_data)
-        job = service.submit(task)
-        self.set_running()
-        service.wait([job])
-        self.set_done()
+        try:
+            logging.debug( "Service: %s" % (self.service_type) )
+            service = service_from_dict(self.nebula_service_data)
+            service.start()
+            task = task_from_dict(self.nebula_task_data)
+            job = service.submit(task)
+            self.set_running()
+            service.wait([job])
+            if job.get_status() not in ['ok']:
+                sys.stderr.write("---ERROR---\n")
+                sys.stderr.write(job.error_msg + "\n")
+                sys.stderr.write("---ERROR---\n")
+            service.stop()
+            self.set_done()
+        except Exception, e:
+            self.set_error(traceback.format_exc())
 
 
 class NebulaExecutor(Executor):

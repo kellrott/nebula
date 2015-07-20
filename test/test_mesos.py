@@ -12,7 +12,6 @@ import nbtest_utils
 from nebula.warpdrive import call_docker_run, call_docker_kill, call_docker_rm
 
 import nebula.drms.mesos_runner
-import nebula.scheduler
 import nebula.service
 from nebula.target import Target
 from nebula.galaxy import GalaxyWorkflow
@@ -155,26 +154,23 @@ class TestMesos(unittest.TestCase):
         service = nebula.service.GalaxyService(
             docstore=doc,
             name="nosetest_galaxy",
-            galaxy="bgruening/galaxy-stable:dev",
+            galaxy="bgruening/galaxy-stable",
             force=True,
             port=20022
         )
 
-        sched = nebula.scheduler.Scheduler({})
         env = {}
         for v in [ 'DOCKER_HOST', 'DOCKER_CERT_PATH', 'DOCKER_TLS_VERIFY']:
             if v in os.environ:
                 env[v] = os.environ[v]
 
-        mesos = nebula.drms.mesos_runner.MesosDRMS(sched, {
+        mesos = nebula.drms.mesos_runner.MesosDRMS({
             "mesos" : "%s:%s" % (self.host_ip, CONFIG_PARENT_PORT),
             "docstore" : doc.get_url(),
             "env" : env
         })
         mesos.start()
-        job_1 = mesos.submit(service, task_1)
+        job_1 = mesos.submit(task_1, service)
         mesos.wait([job_1])
         print job_1
-        logging.info("Sleeping for 15")
-        time.sleep(15)
         mesos.stop()

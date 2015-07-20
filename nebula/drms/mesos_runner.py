@@ -21,17 +21,29 @@ import mesos.interface
 import mesos.native
 from mesos.interface import mesos_pb2
 
-import nebula.drms
+import nebula.drms.mesos_runner
 import nebula.service
 import nebula.docstore
 
 
+class MesosJob(nebula.service.TaskJob):
+    def __init__(self, job_id, task, service):
+        super(MesosJob, self).__init__(job_id=job_id, task=task)
+        self.service = service
+        self.name = service.name + ":" + task.task_id
+    
+    def to_dict(self):
+        return {
+            'job_id' : self.job_id,
+            'service' : self.service.to_dict(),
+            'task' : self.task.to_dict()
+        }
+
 class MesosDRMS(nebula.service.Service):
 
-    def __init__(self, scheduler, config):
+    def __init__(self, config):
         super(MesosDRMS, self).__init__('mesos')
         
-        self.scheduler = scheduler
         self.config = config
         
         self.id_count = 0
@@ -40,7 +52,7 @@ class MesosDRMS(nebula.service.Service):
             logging.error("Mesos not configured")
             return
         self.driver_thread = None
-        self.sched = NebulaMesos(scheduler, config)
+        self.sched = NebulaMesos(self, config)
         self.framework = mesos_pb2.FrameworkInfo()
         self.framework.user = "" # Have Mesos fill in the current user.
         self.framework.name = "Nebula"
@@ -57,14 +69,13 @@ class MesosDRMS(nebula.service.Service):
         if self.driver_thread is not None:
             self.driver_thread.stop()
     
-    def submit(self, service, task):
-        mesos_job = nebula.drms.MesosJob(service, task, job_id=self.id_count)
-        self.id_count += 1
-        self.sched.queue( mesos_job )
-        return mesos_job
-    
-    #def wait(self, jobs):
-        
+    def submit(self, task, service):
+        with self.queue_lock:
+            j = self.job_count
+            mesos_job = nebula.drms.mesos_runner.MesosJob(job_id=j, task=task, service=service)
+            self.job_count += 1
+            self.queue[j] = mesos_job
+            return mesos_job
 
 
 class DriverThread(threading.Thread):
@@ -82,23 +93,15 @@ class NebulaMesos(mesos.interface.Scheduler):
     """
     The GridScheduler is responsible for deploying and managing child Galaxy instances using Mesos
     """
-    def __init__(self, scheduler, config):
+    def __init__(self, service, config):
         mesos.interface.Scheduler.__init__(self)
-        self.scheduler = scheduler
-        self.services = {}
+        self.service = service
         self.active_tasks = {}
         self.config = config
         self.worker_image = config.get('worker_image', 'nebula')
         self.docstore = nebula.docstore.from_url(self.config['docstore'])
         print "NebulaMesos config: %s" % (config)
         logging.info("Starting Mesos scheduler")
-
-
-    """
-    API Interface Methods
-    """
-    def queue_service(self, service):
-        self.scheduler.queue_service(service)
 
     """
     Mesos Interface Methods
@@ -192,36 +195,34 @@ class NebulaMesos(mesos.interface.Scheduler):
                     if res.name == 'mem':
                         mem_count = int(res.scalar.value)
 
-                service = self.scheduler.get()
-                if service is not None:
-                    logging.info("Starting Service: %s" % (service))
+                j = self.service.get_queued()
+                if j is not None:
+                    job_id, job = j
+                    logging.info("Starting Job: %s" % (job))
                     logging.debug("Offered %d cpus" % (cpu_count))
                     cpu_slice = 1
                     mem_slice = 1024
-                    task = self.getTaskInfo(offer, service, cpu_slice, mem_slice)
+                    task = self.getTaskInfo(offer, job, cpu_slice, mem_slice)
                     tasks.append(task)
+                    job.set_running()
             status = driver.launchTasks(offer.id, tasks)
 
     def statusUpdate(self, driver, status):
         if status.state == mesos_pb2.TASK_RUNNING:
             logging.info("Task %s, slave %s is RUNNING" % (status.task_id.value, status.slave_id.value))
             #print status.data
-
-        if status.state == mesos_pb2.TASK_FINISHED:
+        elif status.state == mesos_pb2.TASK_FINISHED:
             logging.info("Task %s, slave %s is FINISHED" % (status.task_id.value, status.slave_id.value))
             data = json.loads(status.data)
+            print data
             #print data
-            if data['task_type'] == 'fileScan':
-                logging.info("Received worker file scan")
-                for k, v in data['outputs'].items():
-                    self.scheduler.add_data_location(k, status.slave_id.value)
-            else:
-                self.scheduler.complete_task(status.slave_id.value, data['task_id'], data)
-
-        if status.state == mesos_pb2.TASK_FAILED:
+            self.service.active[data['job_id']].set_done()
+        elif status.state == mesos_pb2.TASK_FAILED:
             logging.info("Task %s, slave %s is FAILED" % (status.task_id.value, status.slave_id.value))
+            print status.data
             #print status.data
-
+        else:
+            logging.info("Unknown Status Update: %s" % (status.state))
     def getFrameworkName(self, driver):
         return "Nebula"
     

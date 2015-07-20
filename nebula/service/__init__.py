@@ -120,7 +120,7 @@ class Service(Thread):
             if job_id in self.queue:
                 return "waiting"
             if job_id in self.active:
-                return "active"
+                return self.active[job_id].state
             return "unknown"
 
     def get_job(self, job_id):
@@ -158,7 +158,7 @@ class ServiceConfig:
         return from_dict(self.config)
 
 
-class TaskJob:
+class TaskJob(object):
     def __init__(self, job_id, task):
         self.task = task
         #self.service_name = self.task['service']
@@ -170,10 +170,10 @@ class TaskJob:
         self.state = "queued"
 
     def set_running(self):
-        pass
+        self.state = "running"
 
     def set_done(self):
-        pass
+        self.state = "ok"
 
     def set_error(self, msg="Failure"):
         self.error_msg = msg
@@ -191,13 +191,6 @@ class TaskJob:
     def get_status(self):
         return self.state
 
-    """
-    def get_parameters(self):
-        return self.task['request']['parameters']
-
-    def get_outputs(self):
-        return self.outputs
-    """
 
 from galaxy import GalaxyService
 from md5_service import MD5Service
