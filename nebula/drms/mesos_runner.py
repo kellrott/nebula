@@ -25,19 +25,16 @@ import nebula.drms
 import nebula.service
 import nebula.docstore
 
-class MesosService(nebula.service.Service):
-    def __init__(self, service):
-        self.service = service
-        super(MesosService, self).__init__("MesosService(%s)" % (service.name))
-        self.name = "mesos:%s" % (service.name)
-    
-    def to_dict(self):
-        return self.service.to_dict()
 
-class MesosDRMS(nebula.drms.DRMSWrapper):
+class MesosDRMS(nebula.service.Service):
 
     def __init__(self, scheduler, config):
-        super(MesosDRMS, self).__init__(scheduler, config)
+        super(MesosDRMS, self).__init__('mesos')
+        
+        self.scheduler = scheduler
+        self.config = config
+        
+        self.id_count = 0
 
         if "mesos" not in self.config:
             logging.error("Mesos not configured")
@@ -49,7 +46,7 @@ class MesosDRMS(nebula.drms.DRMSWrapper):
         self.framework.name = "Nebula"
         ## additional authentication stuff would go here
         self.driver = mesos.native.MesosSchedulerDriver(self.sched, self.framework, self.config['mesos'])
-
+        
     def start(self):
         logging.info("Starting Mesos Thread")
         self.driver_thread = DriverThread(self.driver)
@@ -59,11 +56,15 @@ class MesosDRMS(nebula.drms.DRMSWrapper):
         logging.info("Stoping Mesos Thread")
         if self.driver_thread is not None:
             self.driver_thread.stop()
-
-    def deploy_service(self, service):
-        mesos_service = MesosService(service)
-        self.sched.queue_service(mesos_service)
-        return mesos_service
+    
+    def submit(self, service, task):
+        mesos_job = nebula.drms.MesosJob(service, task, job_id=self.id_count)
+        self.id_count += 1
+        self.sched.queue( mesos_job )
+        return mesos_job
+    
+    #def wait(self, jobs):
+        
 
 
 class DriverThread(threading.Thread):
@@ -122,8 +123,8 @@ class NebulaMesos(mesos.interface.Scheduler):
         
         cmd = "python /opt/bin/nebula worker -v"
         """
-        
-        cmd = "bash /home/kellrott/workspaces/nebula/bin/nebula.sh worker -v"
+        cmd_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "bin/nebula.sh")
+        cmd = "bash %s worker -v" % cmd_path
         
         executor.command.value = cmd
         logging.info("Executor Command: %s" % cmd)
@@ -131,6 +132,11 @@ class NebulaMesos(mesos.interface.Scheduler):
         #env_path = executor.command.environment.variables.add()
         #env_path.name = "PATH"
         #env_path.value = os.environ['PATH']
+        
+        for env_name, env_value in self.config.get("env", {}).items():
+            env_e = executor.command.environment.variables.add()
+            env_e.name = env_name
+            env_e.value = env_value
 
         executor.name = "nebula_worker"
         executor.source = "nebula_farm"
@@ -186,7 +192,7 @@ class NebulaMesos(mesos.interface.Scheduler):
                     if res.name == 'mem':
                         mem_count = int(res.scalar.value)
 
-                service = self.scheduler.get_service()
+                service = self.scheduler.get()
                 if service is not None:
                     logging.info("Starting Service: %s" % (service))
                     logging.debug("Offered %d cpus" % (cpu_count))
@@ -218,3 +224,6 @@ class NebulaMesos(mesos.interface.Scheduler):
 
     def getFrameworkName(self, driver):
         return "Nebula"
+    
+    def queue(self, task):
+        self.scheduler.queue(task)

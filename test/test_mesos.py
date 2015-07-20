@@ -15,6 +15,7 @@ import nebula.drms.mesos_runner
 import nebula.scheduler
 import nebula.service
 from nebula.target import Target
+from nebula.galaxy import GalaxyWorkflow
 from nebula.docstore import FileDocStore
 from nebula.docstore.util import sync_doc_dir
 from nebula.tasks.md5_task import MD5Task
@@ -29,7 +30,7 @@ logging.basicConfig(level=logging.DEBUG)
 MASTER_IMAGE="mesosphere/mesos-master:0.22.1-1.0.ubuntu1404"
 SLAVE_IMAGE="mesosphere/mesos-slave:0.22.1-1.0.ubuntu1404"
 
-CONFIG_EXISTING_MESOS = "127.0.1.1:5050"
+CONFIG_EXISTING_MESOS = "127.0.0.1:5050"
 CONFIG_SUDO = False
 CONFIG_PARENT_PORT = 15050
 
@@ -114,13 +115,14 @@ class TestMesos(unittest.TestCase):
 
         if os.path.exists("./test_tmp/docstore"):
             shutil.rmtree("./test_tmp/docstore")
-
+        
+        """
         call_docker_kill(MASTER_NAME)
         call_docker_kill(SLAVE_NAME_BASE % (0))
 
         call_docker_rm(MASTER_NAME)
         call_docker_rm(SLAVE_NAME_BASE % (0))
-
+        """
 
     def testMesosLaunch(self):
         input_file_1 = Target("c39ded10-6073-11e4-9803-0800200c9a66"),
@@ -132,19 +134,46 @@ class TestMesos(unittest.TestCase):
             uuid_set=["c39ded10-6073-11e4-9803-0800200c9a66", "26fd12a2-9096-4af2-a989-9e2f1cb692fe"]
         )
 
-        task_1 = MD5Task(input_file_1)
-
-        md5_service = nebula.service.md5_service.MD5Service(doc)
+        #task_1 = MD5Task(input_file_1)
+        #md5_service = nebula.service.md5_service.MD5Service(doc)
+        
+        input_file_1 = Target(uuid="c39ded10-6073-11e4-9803-0800200c9a66")
+        input_file_2 = Target(uuid="26fd12a2-9096-4af2-a989-9e2f1cb692fe")
+        workflow = GalaxyWorkflow(ga_file=get_abspath("../examples/simple_galaxy/SimpleWorkflow.ga"))
+        task_1 = nebula.tasks.GalaxyWorkflowTask("workflow_test",
+            workflow,
+            inputs={
+                'input_file_1' : input_file_1,
+                'input_file_2' : input_file_2
+            },
+            parameters = {
+                "tail_select" : {
+                    "lineNum" : 3
+                }
+            }
+        )
+        service = nebula.service.GalaxyService(
+            docstore=doc,
+            name="nosetest_galaxy",
+            galaxy="bgruening/galaxy-stable:dev",
+            force=True,
+            port=20022
+        )
 
         sched = nebula.scheduler.Scheduler({})
+        env = {}
+        for v in [ 'DOCKER_HOST', 'DOCKER_CERT_PATH', 'DOCKER_TLS_VERIFY']:
+            if v in os.environ:
+                env[v] = os.environ[v]
+
         mesos = nebula.drms.mesos_runner.MesosDRMS(sched, {
             "mesos" : "%s:%s" % (self.host_ip, CONFIG_PARENT_PORT),
-            "docstore" : doc.get_url()
+            "docstore" : doc.get_url(),
+            "env" : env
         })
         mesos.start()
-        mesos_md5_service = mesos.deploy_service(md5_service)
-        job_1 = mesos_md5_service.submit(task_1)
-        mesos_md5_service.wait([job_1])
+        job_1 = mesos.submit(service, task_1)
+        mesos.wait([job_1])
         print job_1
         logging.info("Sleeping for 15")
         time.sleep(15)

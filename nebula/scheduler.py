@@ -25,8 +25,7 @@ class Scheduler:
         logging.debug("Initializing Scheduler")
         self.config = config
         self.state = 'starting'
-        self.queued_jobs = []
-        self.queued_services = []
+        self.queued = []
         self.workers = {}
         self.dags = DagSet()
         self.tasks = {}
@@ -35,12 +34,12 @@ class Scheduler:
     def done(self):
         return self.state == 'done'
 
-    def queue_service(self, service):
-        self.queued_services.append(service)
+    def queue(self, service):
+        self.queued.append(service)
 
-    def get_service(self):
-        if len(self.queued_services):
-            return self.queued_services.pop()
+    def get(self):
+        if len(self.queued):
+            return self.queued.pop()
         return None
     """
     def activate_tasks(self, max_dags=1):

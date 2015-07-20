@@ -17,7 +17,7 @@
 #    from pesos.executor import PesosExecutorDriver as MesosExecutorDriver
 #except ImportError:
 from mesos.native import MesosExecutorDriver
-
+from mesos.interface import mesos_pb2
 from mesos.interface import Executor
 
 from argparse import ArgumentParser
@@ -39,27 +39,31 @@ from glob import glob
 
 from nebula.service import TaskJob, GalaxyService
 from nebula.service import from_dict as service_from_dict
+from nebula.tasks import from_dict as task_from_dict
 
 logging.basicConfig(level=logging.INFO)
 
 uuid4hex = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', re.I)
 
 
-class MesosJob(TaskJob):
+class MesosJob(threading.Thread):
     def __init__(self, driver, task):
+        threading.Thread.__init__(self)
         self.driver = driver
-        self.task = task
-        self.task_data = json.loads(self.task.data)
-        logging.debug("TaskData: %s" % (self.task_data))
-        self.service_type = self.task_data['service_type']
+        self.mesos_task = task
+        self.mesos_task_data = json.loads(self.mesos_task.data)
+        self.nebula_service_data = self.mesos_task_data['service']
+        self.nebula_task_data = self.mesos_task_data['task']
+        logging.debug("TaskData: %s" % (json.dumps(self.mesos_task_data, indent=4)))
+        self.service_type = self.nebula_service_data['service_type']
 
     def set_running(self):
-        logging.info("Running Nebula job: %s" % (self.task.task_id.value))
+        logging.info("Running Nebula job: %s" % (self.mesos_task.task_id.value))
         nebula_task_id = None
         #try:
-        nebula_task_id = str(self.task_data['task_id'])
+        nebula_task_id = str(self.nebula_task_data['task_id'])
         update = mesos_pb2.TaskStatus()
-        update.task_id.value = self.task.task_id.value
+        update.task_id.value = self.mesos_task.task_id.value
         update.state = mesos_pb2.TASK_RUNNING
         update.data = nebula_task_id
         self.driver.sendStatusUpdate(update)
@@ -68,17 +72,27 @@ class MesosJob(TaskJob):
     def set_done(self):
         logging.info("Finished Nebula job: %s" % (self.task.task_id.value))
         update = mesos_pb2.TaskStatus()
-        update.task_id.value = self.task.task_id.value
-        update.data = str(self.task_data['task_id'])
+        update.task_id.value = self.mesos_task.task_id.value
+        update.data = str(self.mesos_task_data['task_id'])
         update.state = mesos_pb2.TASK_FINISHED
         self.driver.sendStatusUpdate(update)
     
     def set_error(self):
         update = mesos_pb2.TaskStatus()
-        update.task_id.value = self.task.task_id.value
-        update.data = str(self.task_data['task_id'])
+        update.task_id.value = self.mesos_task.task_id.value
+        update.data = str(self.mesos_task_data['task_id'])
         update.state = mesos_pb2.TASK_FAILED
         self.driver.sendStatusUpdate(update)
+    
+    def run(self):
+        logging.debug( "Service: %s" % (self.service_type) )
+        service = service_from_dict(self.nebula_service_data)
+        service.start()
+        task = task_from_dict(self.nebula_task_data)
+        job = service.submit(task)
+        self.set_running()
+        service.wait([job])
+        self.set_done()
 
 
 class NebulaExecutor(Executor):
@@ -86,7 +100,7 @@ class NebulaExecutor(Executor):
         logging.debug("Initing Executor")
         Executor.__init__(self)
         self.config = config
-        self.services = {}
+        self.tasks = []
         logging.debug("Executor starting")
 
     #def init(self, driver, arg):
@@ -95,13 +109,8 @@ class NebulaExecutor(Executor):
     def launchTask(self, driver, task):
         logging.debug( "Running task %s" % task.task_id.value )
         job = MesosJob(driver, task)
-        service_name = job.service_type
-        logging.debug( "Service: %s" % (service_name) )
-        if service_name not in self.services:
-            s = service_from_dict(job.task_data)
-            self.services[service_name] = s
-            s.start()
-        self.services[service_name].submit(job)
+        job.start()
+        self.tasks.append(job)
 
     def killTask(self, driver, task_id):
         logging.debug( "Killing task %s" % task_id.value )

@@ -1,7 +1,7 @@
 
 import logging
 
-
+"""
 class DRMSWrapper(object):
     def __init__(self, scheduler, config):
         self.scheduler = scheduler
@@ -18,3 +18,18 @@ class DRMSWrapper(object):
 
     def stop(self):
         raise NotImplementedException()
+"""
+
+class MesosJob:
+    def __init__(self, service, task, job_id):
+        self.service = service
+        self.task = task
+        self.job_id = job_id
+        self.name = service.name + ":" + task.task_id
+    
+    def to_dict(self):
+        return {
+            'service' : self.service.to_dict(),
+            'task' : self.task.to_dict()
+        }
+        
