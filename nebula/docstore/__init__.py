@@ -148,7 +148,10 @@ class FileDocStore(DocStore):
         for a in self._doclist():
             doc_id = os.path.basename(a).replace(FILE_SUFFIX, "").replace("dataset_", "")
             with open(a) as handle:
-                meta = json.loads(handle.read())
+                try:
+                    meta = json.loads(handle.read())
+                except ValueError:
+                    raise Exception("Error reading record %s" % (doc_id))
                 match = True
                 for k,v in kwds.items():
                     if k not in meta:

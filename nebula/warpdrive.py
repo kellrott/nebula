@@ -830,7 +830,7 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers(title="subcommand")
 
     parser_up = subparsers.add_parser('up')
-    parser_up.add_argument("-g", "--galaxy", dest="galaxy", default="bgruening/galaxy-stable:dev")
+    parser_up.add_argument("-g", "--galaxy", dest="galaxy", default="bgruening/galaxy-stable")
     parser_up.add_argument("-t", "--tool-dir", default=None)
     parser_up.add_argument("-ti", "--tool-images", default=None)
     parser_up.add_argument("-td", "--tool-data", default=None)
