@@ -107,7 +107,7 @@ class GalaxyWorkflowTask(Task):
             #'outputs' : self.get_output_data(),
         }
 
-    def get_workflow_request(self):
+    def get_workflow_request(self, uuid_ldda_map={}):
         #FIXME: This code is just copy pasted at the moment
         #need to integrate properly
         dsmap = {}
@@ -124,7 +124,10 @@ class GalaxyWorkflowTask(Task):
                         label = step['uuid']
                         if step['type'] == 'data_input':
                             if step['inputs'][0]['name'] == k:
-                                dsmap[label] = {'src':'uuid', 'id' : v.uuid}
+                                if v.uuid in uuid_ldda_map:
+                                    dsmap[label] = {'src':'ldda', 'id' : uuid_ldda_map[v.uuid]}
+                                else:
+                                    dsmap[label] = {'src':'uuid', 'id' : v.uuid}
             else:
                 pass
         if self.parameters is not None:
