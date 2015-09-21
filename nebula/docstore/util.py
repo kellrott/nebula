@@ -22,13 +22,21 @@ def scan_doc_dir(path):
     return data_map
 
 
-def sync_doc_dir(path, docstore, uuid_set=None):
+def sync_doc_dir(path, docstore, uuid_set=None, filter=None):
     data_map = scan_doc_dir(path)
-    print "Scanned", path, data_map
+    #print "Scanned", path, data_map
     for uuid, path in data_map.items():
         t = Target(uuid)
         if not docstore.exists(t):
-            if uuid_set is None or uuid in uuid_set:
+            copy = True
+            if uuid_set is not None and uuid not in uuid_set:
+                copy = False
+            if filter is not None:
+                with open(path + ".json") as handle:
+                    meta = json.loads(handle.read())
+                if not filter(meta):
+                    copy = False
+            if copy:
                 logging.info("Adding file: %s" % (path))
                 docstore.update_from_file(t, path, create=True)
                 with open(path + ".json") as handle:

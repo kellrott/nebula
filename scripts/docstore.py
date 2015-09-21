@@ -39,21 +39,24 @@ def run_errors(docstore):
             if 'provenance' in entry:
                 print "tool:", entry['provenance']['tool_id']
                 print "-=-=-=-=-=-=-"
-            #print entry['job']['stdout']
+            print entry['job']['stdout']
             print "-------------"
             print entry['job']['stderr']
             print "-=-=-=-=-=-=-"
 
 
-def run_ls(docstore, size=False):
+def run_ls(docstore, size=False, extra=[]):
     doc = FileDocStore(file_path=docstore)
 
     for id, entry in doc.filter():
         #if doc.size(entry) > 0:
+            extra = []
+            for e in args.extra:
+                extra.append( str(entry.get(e,"")) )
             if size:
-                print id, entry.get('name', id), doc.size(entry)
+                print id, entry.get('name', id), doc.size(entry), " ".join(extra)
             else:
-                print id, entry.get('name', id)
+                print id, entry.get('name', id), " ".join(extra)
 
 def run_query(docstore, fields, size, filters):
     doc = FileDocStore(file_path=docstore)
@@ -74,14 +77,24 @@ def run_query(docstore, fields, size, filters):
             size_value = doc.size(Target(uuid=entry['uuid']))
         else:
             size_value = ""
-
+        
         print size_value, json.dumps(line)
-
-
 
 def run_get(docstore, uuid, outpath):
     doc = FileDocStore(file_path=docstore)
     print doc.get_filename(Target(uuid=uuid))
+
+
+def run_timing(docstore):
+    doc = FileDocStore(file_path=docstore)
+    for id, entry in doc.filter():
+        if 'job' in entry and 'job_metrics' in entry['job']:
+            timing = None
+            for met in entry['job']['job_metrics']:
+                if met['name'] == 'runtime_seconds':
+                    timing = met['raw_value']
+            if timing is not None:
+                print id, entry["name"], timing
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -97,6 +110,7 @@ if __name__ == "__main__":
 
     parser_ls = subparsers.add_parser('ls')
     parser_ls.add_argument("-s", "--size", action="store_true", default=False)
+    parser_ls.add_argument("-e", "--extra", action="append", default=[])
     parser_ls.set_defaults(func=run_ls)
 
     parser_query = subparsers.add_parser('query')
@@ -104,6 +118,9 @@ if __name__ == "__main__":
     parser_query.add_argument("--size", action="store_true", default=False)
     parser_query.add_argument("-f", "--filter", dest="filters", action="append", default=[])
     parser_query.add_argument("fields", nargs="*", default=None)
+
+    parser_timing = subparsers.add_parser('timing')
+    parser_timing.set_defaults(func=run_timing)
 
     args = parser.parse_args()
     func = args.func

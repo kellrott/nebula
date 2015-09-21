@@ -148,16 +148,21 @@ class FileDocStore(DocStore):
         for a in self._doclist():
             doc_id = os.path.basename(a).replace(FILE_SUFFIX, "").replace("dataset_", "")
             with open(a) as handle:
-                meta = json.loads(handle.read())
+                try:
+                    meta = json.loads(handle.read())
+                except ValueError:
+                    raise Exception("Error reading record %s" % (doc_id))
                 match = True
                 for k,v in kwds.items():
                     if k not in meta:
                         match = False
                     else:
-                        if isinstance(meta[k], basestring) and meta[k] != v:
-                            match = False
-                        elif v not in meta[k]:
-                            match = False
+                        if hasattr(v, "__iter__"):
+                            if meta[k] not in v:
+                                match = False
+                        else:
+                            if meta[k] != v:
+                                match = False
                 if match:
                     yield doc_id, TargetDict(meta)
 

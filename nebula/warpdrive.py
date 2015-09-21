@@ -563,6 +563,9 @@ class RemoteGalaxy(object):
     def get_history(self, history):
         return self.get("/api/histories/%s" % (history))
 
+    def get_history_contents(self, history):
+        return self.get("/api/histories/%s/contents?details=all" % (history))
+
     def get_provenance(self, history, hda, follow=False):
         if follow:
             return self.get("/api/histories/%s/contents/%s/provenance" % (history, hda), {"follow" : True})
@@ -827,7 +830,7 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers(title="subcommand")
 
     parser_up = subparsers.add_parser('up')
-    parser_up.add_argument("-g", "--galaxy", dest="galaxy", default="bgruening/galaxy-stable:dev")
+    parser_up.add_argument("-g", "--galaxy", dest="galaxy", default="bgruening/galaxy-stable")
     parser_up.add_argument("-t", "--tool-dir", default=None)
     parser_up.add_argument("-ti", "--tool-images", default=None)
     parser_up.add_argument("-td", "--tool-data", default=None)

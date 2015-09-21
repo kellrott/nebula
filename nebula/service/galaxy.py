@@ -94,6 +94,7 @@ class GalaxyService(Service):
             req = self.get_queued()
             if req is not None:
                 logging.info("Received task request")
+                uuid_ldda_map = {}
                 with self.queue_lock:
                     job_id, job = req
                     wids = []
@@ -109,6 +110,7 @@ class GalaxyService(Service):
                         if 'id' not in nli:
                             raise Exception("Failed to load data: %s" % (str(nli)))
                         wids.append(nli['id'])
+                        uuid_ldda_map[v.uuid] = nli['id']
 
                     #wait for the uploading of the files to finish
                     while True:
@@ -129,7 +131,8 @@ class GalaxyService(Service):
                     logging.info("Loading Workflow: %s" % (workflow_data['uuid']))
                     self.rg.add_workflow(workflow_data)
                     wf = GalaxyWorkflow(workflow_data)
-                    request = job.task.get_workflow_request()
+                    print "uuid_map", uuid_ldda_map
+                    request = job.task.get_workflow_request(uuid_ldda_map)
                     print "Calling Workflow", json.dumps(request)
                     invc = self.rg.call_workflow(request=request)
                     print "Called Workflow", json.dumps(invc)
