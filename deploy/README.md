@@ -1,3 +1,12 @@
+
+Vagrant Based VM Development
+----------------------------
+
+vagrant up
+
+GCE Deployment
+--------------
+
 Once you have created a GCE project, add your public key through the developer's console (Compute --> Compute Engine --> Metadata --> SSH Keys)
 Generate a private key and download it to your local machine (APIs & auth --> Credentials) 
 Convert the .p12 key using the following command:

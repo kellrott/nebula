@@ -1,0 +1,6 @@
+[mesos_masters]
+vm-cluster-master mesos_ip=0.0.0.0
+
+[mesos_slaves]
+vm-cluster-node1 mesos_ip=10.211.55.100
+vm-cluster-node2 mesos_ip=10.211.55.101

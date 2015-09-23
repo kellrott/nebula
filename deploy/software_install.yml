@@ -1,18 +1,23 @@
--
-    hosts:
-        - mesos_masters
-        - mesos_slaves
-    sudo: yes
-    tasks:
-        -
-            name: Add user to docker group
-            user:
-                name: ubuntu
-                append: yes
-                groups: docker
-
 - hosts: all
   sudo: True
   roles:
     - { role: ansible-docker, tags: ['os-tools'] }
-    - { role: ansible-mesos, mesos_version: "0.22.1", tags: ['mesos', 'platforms'] }
+
+-
+    hosts: all
+    sudo: True
+    name: Add user to docker group
+    tasks:
+      - user: name={{user}} append=yes groups=docker
+
+- hosts: mesos_masters
+  sudo: True
+  roles:
+    - { role: ansible-mesos, mesos_version: "0.23.0", mesos_install_mode: master, zookeeper_hostnames: "{{ groups.mesos_masters | join(':2181,')}}:2181" , tags: ['mesos', 'platforms'] }
+
+- hosts: mesos_slaves
+  sudo: True
+  roles:
+    - { role: ansible-mesos, mesos_version: "0.23.0", mesos_install_mode: slave, zookeeper_hostnames: "{{ groups.mesos_masters | join(':2181,')}}:2181", tags: ['mesos', 'platforms'] }
+
+
