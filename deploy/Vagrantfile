@@ -22,6 +22,12 @@ ff02::2 ip6-allrouters
 10.211.55.104   vm-cluster-node5
 10.211.55.105   vm-cluster-master
 EOF
+
+cat > /etc/security/limits.conf <<EOF
+* soft nofile 8192
+* hard nofile 8192
+EOF
+
 sudo apt-get install software-properties-common
 apt-add-repository -y ppa:ansible/ansible
 apt-get update
@@ -46,6 +52,12 @@ ff02::2 ip6-allrouters
 10.211.55.104   vm-cluster-node5
 10.211.55.105   vm-cluster-master
 EOF
+
+cat > /etc/security/limits.conf <<EOF
+* soft nofile 8192
+* hard nofile 8192
+EOF
+
 SCRIPT
 
  
@@ -67,6 +79,7 @@ Vagrant.configure("2") do |config|
     end
     master.vm.network :private_network, ip: "10.211.55.105"
     master.vm.network "forwarded_port", guest: 5050, host: 5050
+    master.vm.network "forwarded_port", guest: 8081, host: 8081
     master.vm.hostname = "vm-cluster-master"
     master.vm.provision :shell, :inline => $master_script
   end

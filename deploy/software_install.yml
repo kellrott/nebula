@@ -1,7 +1,7 @@
 - hosts: all
   sudo: True
   roles:
-    - { role: ansible-docker, tags: ['os-tools'] }
+    - { role: ansible-docker, docker_opts: '"--default-ulimit nofile=262144:262144"', tags: ['os-tools'] }
 
 -
     hosts: all
