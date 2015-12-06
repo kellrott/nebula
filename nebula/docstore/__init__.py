@@ -4,8 +4,8 @@ import uuid
 import json
 from glob import glob
 from urlparse import urlparse, ParseResult
-from galaxy.objectstore import ObjectStore, DiskObjectStore
-from galaxy.objectstore.local_cache import CachedDiskObjectStore
+from nebula.ext.galaxy.objectstore import ObjectStore, DiskObjectStore
+from nebula.ext.galaxy.objectstore.local_cache import CachedDiskObjectStore
 
 def from_url(url, **kwds):
     p = urlparse(url)
@@ -109,11 +109,14 @@ class FileDocStore(DocStore):
     Cheap and simple file based doc store, not recommended for large systems
     """
 
-    def __init__(self, file_path, cache_path=None, **kwds):
+    def __init__(self, file_path, cache_path=None, object_store=None, **kwds):
         if cache_path:
             objs = CachedDiskObjectStore(DiskObjectStoreConfig(), cache_path=cache_path, file_path=file_path, **kwds)
         else:
-            objs = DiskObjectStore(DiskObjectStoreConfig(), file_path=file_path, **kwds)
+            if object_store is not None:
+                objs = object_store
+            else:
+                objs = DiskObjectStore(DiskObjectStoreConfig(), file_path=file_path, **kwds)
         super(FileDocStore, self).__init__(objectstore=objs, **kwds)
         self.file_path = os.path.abspath(file_path)
         self.url = os.path.abspath(self.file_path)
@@ -168,3 +171,59 @@ class FileDocStore(DocStore):
 
     def get_url(self):
         return "filedoc://%s" % (self.url)
+
+class LocalFileStore(DiskObjectStore):
+    
+    def __init__(self, config, file_path):
+        super(LocalFileStore, self).__init__(config, file_path=file_path)
+        self.path_map = {}
+
+    def _construct_path(self, obj, **kwargs):
+        if obj.id in self.path_map:
+            return self.path_map[obj.id]
+        return super(LocalFileStore, self)._construct_path(obj=obj,**kwargs)
+        
+
+    def update_from_file(self, obj, file_name=None, create=False, **kwargs):
+        if file_name is not None:
+            self.path_map[obj.id] = file_name
+        else:
+            super(LocalFileStore, self).update_from_file(obj, file_name=file_name, create=create, **kwargs)
+
+
+class LocalDocStore(FileDocStore):
+    """
+    Memory based doctstore
+    """
+
+    def __init__(self, file_path, cache_path=None, **kwds):
+        objs = LocalFileStore(DiskObjectStoreConfig(), file_path=file_path, **kwds)
+        super(LocalDocStore, self).__init__(file_path, object_store=objs, **kwds)
+        self.data_map = {}
+        
+    def get(self, id):
+        id = self.cleanid(id)
+        return TargetDict(self.data_map[id])
+
+    def put(self, id, doc):
+        self.data_map[id] = doc
+
+    def filter(self, **kwds):
+        for doc_id, meta in self.data_map.items():
+            match = True
+            for k,v in kwds.items():
+                if k not in meta:
+                    match = False
+                else:
+                    if hasattr(v, "__iter__"):
+                        if meta[k] not in v:
+                            match = False
+                    else:
+                        if meta[k] != v:
+                            match = False
+            if match:
+                yield doc_id, TargetDict(meta)
+
+
+    def get_url(self):
+        return "NA"

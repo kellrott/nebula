@@ -11,11 +11,11 @@ import logging
 import threading
 from xml.etree import ElementTree
 
-from galaxy.util.files import umask_fix_perms, force_symlink
-from galaxy.exceptions import ObjectInvalid, ObjectNotFound
-from galaxy.util.sleeper import Sleeper
-from galaxy.util.directory_hash import directory_hash_id
-from galaxy.util.odict import odict
+from nebula.ext.galaxy.util.files import umask_fix_perms, force_symlink
+from ... galaxy.exceptions import ObjectInvalid, ObjectNotFound
+from ... galaxy.util.sleeper import Sleeper
+from ... galaxy.util.directory_hash import directory_hash_id
+from ... galaxy.util.odict import odict
 try:
     from sqlalchemy.orm import object_session
 except ImportError:

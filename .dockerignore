@@ -1,0 +1,5 @@
+workdir
+*.pyc
+test_tmp
+venv
+objectspace

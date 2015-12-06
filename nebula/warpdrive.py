@@ -282,6 +282,35 @@ def scan_directory(lpath, metadata_suffix=None):
                     pass
     return data_load, meta_data
 
+def web_wait(url, timeout=60):
+    timeout_time = time.time() + timeout
+    while True:
+        if time.time() > timeout_time:
+            raise Exception("Startup Timed out")
+        time.sleep(3)
+        try:
+            logging.debug("Pinging: %s" % (url))
+            res = requests.get(url, timeout=3)
+            if res.status_code / 100 == 5:
+                continue
+            if res.status_code in [404, 403]:
+                continue
+            break
+        except requests.exceptions.ConnectionError:
+            pass
+        except requests.exceptions.Timeout:
+            pass
+
+def library_paste_sync(rg, data_load, meta_data):
+    library_id = rg.create_library("Imported")
+    folder_id = rg.library_find_contents(library_id, "/")['id']
+    for data in data_load:
+        logging.info("Loading: %s" % (data))
+        md = {}
+        if data in meta_data:
+            md = meta_data[data]
+        rg.library_paste_file(library_id, folder_id, os.path.basename(data), data, uuid=md.get('uuid', None))
+
 
 def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None,
     sudo=False, lib_data=[], auto_add=False, tool_data=None, metadata_suffix=None,
@@ -333,7 +362,7 @@ def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None
         mounts[os.path.abspath(tool_dir)] = "/tools_import"
         mounts[config_dir] = "/config"
         with open( os.path.join(config_dir, "import_tool_conf.xml"), "w" ) as handle:
-            handle.write(TOOL_IMPORT_CONF)
+            handle.write(string.Template(TOOL_IMPORT_CONF).substitute(TOOL_DIR="/tools_import"))
         env['GALAXY_CONFIG_TOOL_CONFIG_FILE'] = "/config/import_tool_conf.xml,config/tool_conf.xml.main"
 
     if tool_images is not None:
@@ -593,7 +622,7 @@ class RemoteGalaxy(object):
                 found = True
                 break
         if not found:
-            raise Exception("Path not in mounted lib_data directories: %s" % (datapath))
+            raise Exception("Path %s not in mounted lib_data directories (%s)" % (datapath, ",".join(self.path_mapping.keys())))
         data = {}
         data['folder_id'] = library_folder_id
         data['file_type'] = 'auto'
@@ -769,16 +798,57 @@ def run_build(tool_dir, host=None, sudo=False, tool=None, no_cache=False, image_
                                     )
 
 
+def config_tool_dir(tool_dir, env, config_path="/etc/galaxy/import_tool_conf.xml"):
+    with open(config_path, "w") as handle:
+        handle.write(string.Template(TOOL_IMPORT_CONF).substitute(TOOL_DIR=tool_dir))
+    env['GALAXY_CONFIG_TOOL_CONFIG_FILE'] = "%s,config/tool_conf.xml.main" % (config_path)
+
+def config_jobs(smp, env, parent_name, job_conf_file="/etc/galaxy/jobs.xml", 
+    default_container="nebula_galaxy_runner", common_volumes="", 
+    plugin="slurm", handler="children"):
+    
+    #for every different count of SMPs, create a different destination
+    smp_destinations = []
+    for count in set( a[1] for a in smp ):
+        smp_destinations.append( string.Template(SMP_DEST_CONF).substitute(
+            DEST_NAME="docker_cluster_smp%s" % (count),
+            TAG=default_container,
+            NAME=parent_name,
+            NCPUS=count,
+            COMMON_VOLUMES=common_volumes)
+        )
+
+    smp_tools = []
+    for tool, count in smp:
+        smp_tools.append( string.Template(SMP_TOOL_CONF).substitute(
+                DEST_NAME="docker_cluster_smp%s" % (count),
+                TOOL_ID=tool
+            )
+        )
+    
+    job_conf = string.Template(JOB_CHILD_CONF).substitute(
+        TAG=default_container,
+        NAME=parent_name,
+        COMMON_VOLUMES=common_volumes,
+        SMP_DESTINATIONS="\n".join(smp_destinations),
+        SMP_TOOLS="\n".join(smp_tools),
+        PLUGINS=PLUGINS[plugin],
+        HANDLERS=HANDLERS[handler]
+    )
+    with open( job_conf_file, "w" ) as handle:
+        handle.write(job_conf)
+    env["GALAXY_CONFIG_JOB_CONFIG_FILE"] = job_conf_file
+    
 
 TOOL_IMPORT_CONF = """<?xml version='1.0' encoding='utf-8'?>
 <toolbox>
   <section id="imported" name="Imported Tools">
-    <tool_dir dir="/tools_import"/>
+    <tool_dir dir="${TOOL_DIR}"/>
   </section>
 </toolbox>"""
 
 
-SMP_DEST_CONF = """<destination id="${DEST_NAME}" runner="slurm">
+SMP_DEST_CONF = """<destination id="${DEST_NAME}" runner="work_runner">
             <param id="docker_enabled">true</param>
             <param id="docker_sudo">true</param>
             <param id="docker_net">bridge</param>
@@ -789,21 +859,43 @@ SMP_DEST_CONF = """<destination id="${DEST_NAME}" runner="slurm">
             <param id="nativeSpecification">--ntasks=${NCPUS}</param>
         </destination>"""
 
-SMP_TOOL_CONF = """<tool id="${TOOL_ID}" handler="handlers" destination="${DEST_NAME}"></tool>"""
+SMP_TOOL_CONF = """<tool id="${TOOL_ID}" destination="${DEST_NAME}"></tool>"""
 
-JOB_CHILD_CONF = """<?xml version="1.0"?>
-<job_conf>
+PLUGINS = {
+    "slurm" : """
     <plugins workers="2">
-        <plugin id="slurm" type="runner" load="galaxy.jobs.runners.slurm:SlurmJobRunner">
+        <plugin id="work_runner" type="runner" load="galaxy.jobs.runners.slurm:SlurmJobRunner">
             <param id="drmaa_library_path">/usr/lib/slurm-drmaa/lib/libdrmaa.so</param>
         </plugin>
     </plugins>
+""",
+    "local" : """
+    <plugins workers="4">
+        <plugin id="work_runner" type="runner" load="galaxy.jobs.runners.local:LocalJobRunner"/>
+    </plugins>
+"""
+}
+
+HANDLERS = {
+    "children" : """
     <handlers default="handlers">
         <handler id="handler0" tags="handlers"/>
         <handler id="handler1" tags="handlers"/>
     </handlers>
+""",
+    "main" : """
+    <handlers>
+        <handler id="main"/>
+    </handlers>
+"""
+}
+
+JOB_CHILD_CONF = """<?xml version="1.0"?>
+<job_conf>
+    ${PLUGINS}
+    ${HANDLERS}
     <destinations default="cluster_docker">
-        <destination id="cluster_docker" runner="slurm">
+        <destination id="cluster_docker" runner="work_runner">
             <param id="docker_enabled">true</param>
             <param id="docker_sudo">true</param>
             <param id="docker_net">bridge</param>
@@ -813,11 +905,11 @@ JOB_CHILD_CONF = """<?xml version="1.0"?>
             <param id="docker_container_image_cache_path">/images</param>
         </destination>
         ${SMP_DESTINATIONS}
-        <destination id="cluster" runner="slurm">
+        <destination id="cluster" runner="work_runner">
         </destination>
     </destinations>
     <tools>
-        <tool id="upload1" handler="handlers" destination="cluster"></tool>
+        <tool id="upload1" destination="cluster"></tool>
         ${SMP_TOOLS}
     </tools>
 </job_conf>

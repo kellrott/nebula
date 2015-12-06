@@ -1,0 +1,147 @@
+#!/usr/bin/env python
+
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+import os
+import sys
+import time
+import json
+import argparse
+import logging
+import socket
+import logging
+import subprocess
+import traceback
+
+from nebula.service import ServiceConfig
+from nebula.tasks import TaskGroup
+from nebula.target import TargetFile
+from nebula.galaxy import GalaxyWorkflow
+from nebula.service.galaxy_local import GalaxyLocalService
+import nebula.tasks
+from nebula.docstore import LocalDocStore, FileDocStore
+from nebula import warpdrive
+
+def action_run(args):
+    request = {}
+    if args.request is not None:
+        with open(args.request) as handle:
+            request = json.loads(handle.read())
+    inputs = {}
+    request_dirs = []
+    if args.docstore is None:
+        request_dirs.append(os.path.abspath(args.workdir))
+    else:
+        request_dirs.append(os.path.abspath(args.docstore))
+    request_dirs.extend( list( os.path.basename(v) for k,v in args.inputs ) )
+    common_dirs = [ os.path.commonprefix( request_dirs ) ]
+
+    if len(args.inputs):
+        docstore = LocalDocStore(os.path.abspath(args.workdir))
+        for k,v in args.inputs:
+            t = TargetFile(v)
+            inputs[k] = t
+            docstore.update_from_file(t, t.path, create=True)
+            docstore.put(t.id, {"name" : os.path.basename(t.path), "uuid" : t.id})
+    if 'inputs' in request:
+        inputs = request['inputs']
+    
+    if args.docstore is not None:
+        docstore = FileDocStore(os.path.abspath(args.docstore))
+    if args.request is not None:
+        task = nebula.tasks.GalaxyWorkflowTask.from_dict(request)
+    else:
+        if 'workflow' in request:
+            workflow = GalaxyWorkflow(workflow=request['workflow'])
+        if args.workflow is not None:
+            workflow = GalaxyWorkflow(ga_file=args.workflow)
+        task = nebula.tasks.GalaxyWorkflowTask("workflow_test",
+            workflow,
+            inputs=inputs,
+            parameters = request.get('parameters', {})
+        )
+    
+    service = GalaxyLocalService(
+        docstore=docstore,
+        url="http://localhost:8080",
+        api_key=os.environ['GALAXY_DEFAULT_ADMIN_KEY'],
+        common_dirs=common_dirs
+    )
+
+    error = 0
+    try:
+        logging.info("Starting Service")
+        service.start()
+        logging.info("Starting Task")
+        job = service.submit(task)
+        service.wait([job])
+
+        if job.get_status() not in ['ok']:
+            sys.stderr.write("---ERROR---\n")
+            sys.stderr.write(job.error_msg + "\n")
+            sys.stderr.write("---ERROR---\n")
+            error = 1
+    finally:
+        logging.info("Done")
+        if not args.hold and (not args.hold_error or not error):
+            service.stop()    
+    return error
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(title="subcommand")
+
+    parser_run = subparsers.add_parser('run')
+    parser_run.add_argument("-v", action="store_true", default=False)
+    parser_run.add_argument("--hold", action="store_true", default=False)
+    parser_run.add_argument("--hold-error", action="store_true", default=False)
+    parser_run.add_argument("--workflow")
+    parser_run.add_argument("--request", default=None)
+    parser_run.add_argument("--docstore", default=None)
+    parser_run.add_argument("--workdir", default="output")
+    parser_run.add_argument("--tool-tar", action="append", default=[])
+    parser_run.add_argument("--input", dest="inputs", nargs=2, action="append", default=[])
+    parser_run.add_argument("--galaxy-start", default="galaxy_startup")
+    parser_run.add_argument("--galaxy-stop", default="galaxy_shutdown")
+    parser_run.add_argument("--tool-dir", default=None)
+    parser_run.set_defaults(func=action_run)
+
+    args = parser.parse_args()
+
+    if args.v:
+        logging.basicConfig(level=logging.DEBUG)
+        logging.info("Verbose logging")
+    else:
+        logging.basicConfig(level=logging.INFO)
+
+    func = args.func
+
+    try:
+        if args.tool_dir is not None:
+            warpdrive.config_tool_dir(args.tool_dir, os.environ)
+        warpdrive.config_jobs({}, os.environ, 
+            parent_name=os.environ['HOSTNAME'], 
+            plugin="local",
+            handler="main")
+        print "Starting Galaxy"
+        subprocess.check_call(args.galaxy_start, shell=True, env=os.environ)
+        e = func(args)
+    except Exception, e:
+        traceback.print_exc()
+        sys.stderr.write("%s\n" % (e.message))
+        e = 1
+    finally:
+        time.sleep(600)
+        subprocess.check_call(args.galaxy_stop, shell=True)
+        
+    sys.exit(e)
