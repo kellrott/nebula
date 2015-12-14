@@ -44,7 +44,12 @@ class WorkflowStep(object):
         self.step_id = desc["id"]
         self.uuid = desc['uuid']
         self.type = self.desc['type']
-        self.label = self.desc['label'] if self.desc['label'] is not None else str(self.desc['uuid'])
+        label = str(self.desc['uuid'])
+        if self.desc['label'] is not None:
+            label = self.desc['label']
+        elif len(self.desc['annotation']):
+            label = self.desc['annotation']            
+        self.label = label
         self.tool_id = self.desc.get('tool_id', None)
         state = json.loads(self.desc.get('tool_state', "null"))
         self.tool_state = {}

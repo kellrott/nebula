@@ -111,7 +111,7 @@ if __name__ == "__main__":
     parser_run.add_argument("--workdir", default="output")
     parser_run.add_argument("--tool-tar", action="append", default=[])
     parser_run.add_argument("--input", dest="inputs", nargs=2, action="append", default=[])
-    parser_run.add_argument("--galaxy-start", default="galaxy_startup")
+    parser_run.add_argument("--galaxy-start", default="startup_lite -j")
     parser_run.add_argument("--galaxy-stop", default="galaxy_shutdown")
     parser_run.add_argument("--tool-dir", default=None)
     parser_run.set_defaults(func=action_run)
@@ -140,8 +140,8 @@ if __name__ == "__main__":
         traceback.print_exc()
         sys.stderr.write("%s\n" % (e.message))
         e = 1
-    finally:
-        time.sleep(600)
-        subprocess.check_call(args.galaxy_stop, shell=True)
+    #finally:
+    #    time.sleep(600)
+    #    subprocess.check_call(args.galaxy_stop, shell=True)
         
     sys.exit(e)
