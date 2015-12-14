@@ -1,10 +1,11 @@
 
 
-from distutils.core import setup
+from setuptools import setup
 
 setup(
     name='nebula',
     version='0.1dev',
+    scripts=["bin/nebula"],
     packages=[
         'nebula',
         'nebula.docstore',
@@ -17,6 +18,7 @@ setup(
         'nebula.ext.galaxy.objectstore',
         'nebula.ext.galaxy.util'
     ],
+    install_requires=['requests'],
     license='Apache',
     long_description=open('README.md').read(),
     package_data={
