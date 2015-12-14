@@ -19,136 +19,17 @@ import argparse
 import logging
 import socket
 import logging
-
-from nebula.service import ServiceConfig
-from nebula.tasks import TaskGroup
-
-def action_manage(args):
-
-    if args.builddir is None:
-        bfile = os.path.abspath("Nebulafile")
-        if not os.path.exists(file):
-            bfile = os.path.abspath("NebulaFile")
-        args.buildfile = bfile
-    else:
-        bfile = os.path.join(os.path.abspath(args.builddir), "Nebulafile")
-        if not os.path.exists(bfile):
-            bfile = os.path.join(os.path.abspath(args.builddir), "NebulaFile")
-        args.buildfile = bfile
-    args.workdir = os.path.abspath(args.workdir)
-
-    if args.server is None:
-        args.server = socket.gethostname()
-
-    config = Config(mesos=args.mesos,
-        port=args.port,
-        host=args.server,
-        workdir=args.workdir,
-        docker=args.docker,
-        docker_clean = args.docker_clean,
-        object_store = init_objectstore_url(args.object_store),
-        doc_store = init_docstore_url(args.doc_store),
-        max_servers=args.max_servers
-    )
-    build = NebulaCompile()
-    if build.compile(args.buildfile):
-        sys.stderr.write("Compile Failure")
-        sys.exit(1)
-    build.build_images(config)
-    sched = Scheduler(build.to_dags(), config)
-    web = WebSite(sched, config)
-
-    if config.mesos is not None:
-        import nebula.mesos_drms
-        drms = nebula.mesos_drms.MesosDRMS(sched, config)
-
-    try:
-        web.start()
-        drms.start()
-        while True:
-            time.sleep(5)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        web.stop()
-        drms.stop()
-
-def action_run(args):
-
-    config = ServiceConfig()
-    with open(args.service_file) as handle:
-        config.load(handle)
-
-    taskgroup = TaskGroup()
-    with open(args.task_file) as handle:
-        taskgroup.load(handle)
-
-    service = config.create()
-    error = 0
-    try:
-        logging.info("Starting Service")
-        service.start()
-        logging.info("Starting Tasks")
-        jobs = []
-        for new_task in taskgroup:
-            job = service.submit(new_task)
-            jobs.append(job)
-
-        service.wait(jobs)
-
-        for jobs in jobs:
-            if job.get_status() not in ['ok']:
-                sys.stderr.write("---ERROR---\n")
-                sys.stderr.write(job.error_msg + "\n")
-                sys.stderr.write("---ERROR---\n")
-                error = 1
-    finally:
-        logging.info("Done")
-        if not args.hold and (not args.hold_error or not error):
-            service.stop()    
-    return error
-
-def action_worker(args):
-    logging.info("Loading Mesos Worker Code")
-    import nebula.drms.mesos_worker
-    logging.info("Starting Mesos Worker")
-    nebula.drms.mesos_worker.run_worker(vars(args))
-    
+import nebula.warpdrive
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(title="subcommand")
+    subparsers = parser.add_subparsers(title="engine")
+    
+    parser_galaxy = subparsers.add_parser('galaxy')
 
-    parser_run = subparsers.add_parser('run')
-    parser_run.add_argument("-v", action="store_true", default=False)
-    parser_run.add_argument("--hold", action="store_true", default=False)
-    parser_run.add_argument("--hold-error", action="store_true", default=False)
-    parser_run.add_argument("service_file")
-    parser_run.add_argument("task_file")
-    parser_run.set_defaults(func=action_run)
-
-    parser_manage = subparsers.add_parser('manage')
-    parser_manage.set_defaults(func=action_manage)
-    parser_manage.add_argument("--mesos", default="127.0.0.1:5050")
-    parser_manage.add_argument("--port", type=int, default=9999)
-    parser_manage.add_argument("-v", action="store_true", default=False)
-    #parser_manage.add_argument("-r", "--resume", action="store_true", default=False)
-    parser_manage.add_argument("--docker-clean", action="store_true", default=False)
-
-    parser_manage.add_argument("--object-store", default="/tmp/nebula-storage")
-    parser_manage.add_argument("--doc-store", default="/tmp/nebula-docs")
-    parser_manage.add_argument("-s", "--server", default=None)
-    #parser_manage.add_argument("--sf", "--shared", dest="shared", action="append", default=[])
-    parser_manage.add_argument("-m", "--max-servers", type=int, default=0)
-    parser_manage.add_argument("-w", "--workdir", default="/tmp")
-    parser_manage.add_argument("--docker", default=None)
-
-    parser_manage.add_argument("builddir", nargs="?", default=None)
-
-    parser_worker = subparsers.add_parser('worker')
-    parser_worker.add_argument("-v", action="store_true", default=False)
-    parser_worker.set_defaults(func=action_worker)
-
+    galaxy_subparser = parser_galaxy.add_subparsers(title="cmd")
+    nebula.warpdrive.add_warp_build_command(galaxy_subparser)
+    
     args = parser.parse_args()
 
     if args.v:
@@ -160,7 +41,11 @@ if __name__ == "__main__":
     func = args.func
 
     #try:
-    e = func(args)
+    kwds=vars(args)
+    del kwds['v']
+    del kwds['vv']
+    del kwds['func']
+    e = func(**kwds)
     sys.exit(e)
     #except Exception, e:
     #    sys.stderr.write("%s\n" % (e.message))

@@ -765,6 +765,7 @@ def dom_scan_iter(node, stack, prefix):
 
 
 def run_build(tool_dir, host=None, sudo=False, tool=None, no_cache=False, image_dir=None):
+    logging.info("BaseDir: %s" % (tool_dir))
     for tool_conf in glob(os.path.join(tool_dir, "*.xml")) + glob(os.path.join(tool_dir, "*", "*.xml")):
         logging.info("Scanning: " + tool_conf)
         dom = parseXML(tool_conf)
@@ -915,6 +916,19 @@ JOB_CHILD_CONF = """<?xml version="1.0"?>
 </job_conf>
 """
 
+def add_warp_build_command(subparsers):
+    parser_build = subparsers.add_parser('build')
+    parser_build.add_argument("--host", default=None)
+    parser_build.add_argument("--sudo", action="store_true", default=False)
+    parser_build.add_argument("--no-cache", action="store_true", default=False)
+    parser_build.add_argument("-t", "--tool", action="append", default=None)
+    parser_build.add_argument("-o", "--image-dir", default=None)
+    parser_build.add_argument("-v", action="store_true", default=False)
+    parser_build.add_argument("-vv", action="store_true", default=False)
+
+    parser_build.add_argument("tool_dir")
+    parser_build.set_defaults(func=run_build)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -975,17 +989,7 @@ if __name__ == "__main__":
     parser_add.add_argument("files", nargs="+")
     parser_add.set_defaults(func=run_add)
 
-    parser_build = subparsers.add_parser('build')
-    parser_build.add_argument("--host", default=None)
-    parser_build.add_argument("--sudo", action="store_true", default=False)
-    parser_build.add_argument("--no-cache", action="store_true", default=False)
-    parser_build.add_argument("-t", "--tool", action="append", default=None)
-    parser_build.add_argument("-o", "--image-dir", default=None)
-    parser_build.add_argument("-v", action="store_true", default=False)
-    parser_build.add_argument("-vv", action="store_true", default=False)
-
-    parser_build.add_argument("tool_dir")
-    parser_build.set_defaults(func=run_build)
+    add_warp_build_command(subparsers)
 
     args = parser.parse_args()
 
