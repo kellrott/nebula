@@ -1,4 +1,4 @@
-FROM bgruening/galaxy-stable:lite
+FROM bgruening/galaxy-stable:dev
 
 COPY ./ /opt/nebula
 
