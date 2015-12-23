@@ -18,7 +18,7 @@ setup(
         'nebula.ext.galaxy.objectstore',
         'nebula.ext.galaxy.util'
     ],
-    install_requires=['requests'],
+    install_requires=['requests', 'galaxy-lib'],
     license='Apache',
     long_description=open('README.md').read(),
     package_data={
