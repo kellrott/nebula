@@ -2,8 +2,8 @@
 import os
 import shutil
 import logging
-from ... galaxy.objectstore import ObjectStore, DiskObjectStore, directory_hash_id
-from ... galaxy.util.files import umask_fix_perms
+from galaxy.objectstore import ObjectStore, DiskObjectStore, directory_hash_id
+from galaxy.util import umask_fix_perms
 
 class CachedDiskObjectStore(ObjectStore):
 

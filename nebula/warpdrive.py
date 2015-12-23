@@ -413,7 +413,9 @@ def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None
             NAME=name,
             COMMON_VOLUMES=common_volumes,
             SMP_DESTINATIONS="\n".join(smp_destinations),
-            SMP_TOOLS="\n".join(smp_tools)
+            SMP_TOOLS="\n".join(smp_tools),
+            PLUGINS=PLUGINS['slurm'],
+            HANDLERS=HANDLERS['children']
         )
         with open( os.path.join(config_dir, "job_conf.xml"), "w" ) as handle:
             handle.write(job_conf)

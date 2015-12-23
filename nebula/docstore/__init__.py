@@ -4,8 +4,8 @@ import uuid
 import json
 from glob import glob
 from urlparse import urlparse, ParseResult
-from nebula.ext.galaxy.objectstore import ObjectStore, DiskObjectStore
-from nebula.ext.galaxy.objectstore.local_cache import CachedDiskObjectStore
+from galaxy.objectstore import ObjectStore, DiskObjectStore
+from nebula.docstore.local_cache import CachedDiskObjectStore
 
 def from_url(url, **kwds):
     p = urlparse(url)
@@ -90,7 +90,7 @@ class DocStore(ObjectStore):
         return self.objs.get_store_usage_percent()
 
     def local_cache_base(self):
-        return self.objs.local_cache_base()
+        raise Exception("Not Implemented")
 
     def get_url(self):
         raise Exception("Not Implemented")
@@ -123,6 +123,9 @@ class FileDocStore(DocStore):
         if not os.path.exists(self.file_path):
             os.mkdir(self.file_path)
 
+    def local_cache_base(self):
+        return self.file_path
+        
     def _docpath(self, id):
         return os.path.join(self.file_path, id[:2], "dataset_" + id + FILE_SUFFIX)
 

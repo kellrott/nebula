@@ -6,7 +6,6 @@ import json
 import shutil
 import logging
 import unittest
-import nebula.builder
 import nebula.service
 import subprocess
 from nebula.tasks import TaskGroup
@@ -80,7 +79,7 @@ class TestLaunch(unittest.TestCase):
             env['PYTHONPATH'] += ":" + get_abspath("../")
         else:
             env['PYTHONPATH'] = get_abspath("../")
-        subprocess.check_call([get_abspath("../bin/nebula"), "run", service_path, task_path], env=env)
+        subprocess.check_call([get_abspath("../bin/nebula"), "galaxy", "run", service_path, task_path], env=env)
 
         for i in doc.filter():
             print json.dumps(i, indent=4)

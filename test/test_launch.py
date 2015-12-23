@@ -4,7 +4,6 @@ import unittest
 import time
 import os
 import shutil
-import nebula.builder
 import nebula.service
 from nebula.docstore import FileDocStore
 
@@ -23,9 +22,6 @@ class TestLaunch(unittest.TestCase):
         if os.path.exists("./test_tmp/docstore"):
             shutil.rmtree("./test_tmp/docstore")
 
-
-    def testCapture(self):
-        capture = nebula.builder.init_capture()
 
     def testServiceDescription(self):
         store = FileDocStore("./test_tmp/docstore")

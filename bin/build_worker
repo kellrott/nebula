@@ -1,6 +1,0 @@
-#!/usr/bin/env python
-
-import nebula.egg
-
-if __name__ == "__main__":
-    nebula.egg.write_worker_egg("nebula_worker.egg")
