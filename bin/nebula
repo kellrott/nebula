@@ -20,7 +20,7 @@ import logging
 import socket
 import logging
 import nebula.warpdrive
-import nebula.cwl_utils
+import nebula.cwl
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

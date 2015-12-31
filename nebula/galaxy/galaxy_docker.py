@@ -40,7 +40,7 @@ class GalaxyService(Service):
         'name' : "nebula_galaxy",
         'port' : 19999,
         'metadata_suffix' : ".json",
-        'galaxy' : "bgruening/galaxy-stable",
+        'galaxy' : "bgruening/galaxy-stable:dev",
         'force' : True,
         'tool_docker' : True
     }
@@ -81,6 +81,7 @@ class GalaxyService(Service):
             self.config['lib_data'].append(self.docstore.local_cache_base())
         else:
             self.config['lib_data'] = [ self.docstore.local_cache_base() ]
+        print "running config", self.config
         self.rg = run_up( **self.config )
         library_id = self.rg.library_find("Imported")['id']
         folder_id = self.rg.library_find_contents(library_id, "/")['id']
@@ -182,6 +183,7 @@ class GalaxyService(Service):
 
     def store_data(self, object, doc_store):
         meta = self.rg.get_dataset(object['id'], object['src'])
+        print "Storing", meta
         meta['id'] = meta['uuid'] #use the glocal id
         hda = HDATarget(meta)
         doc_store.create(hda)

@@ -7,10 +7,8 @@ import logging
 import time
 import nebula.docstore
 from nebula.docstore.util import sync_doc_dir
-from nebula.target import Target
-from nebula.service import GalaxyService, TaskJob
-from nebula.galaxy import GalaxyWorkflow
-import nebula.tasks
+from nebula import Target
+from nebula.galaxy import GalaxyService, GalaxyWorkflow
 
 logging.basicConfig(level=logging.INFO)
 

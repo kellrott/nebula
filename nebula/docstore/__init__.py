@@ -122,18 +122,24 @@ class FileDocStore(DocStore):
                 objs = DiskObjectStore(DiskObjectStoreConfig(), file_path=file_path, **kwds)
         super(FileDocStore, self).__init__(objectstore=objs, **kwds)
         self.file_path = os.path.abspath(file_path)
+        if cache_path is not None:
+            self.cache_path = os.path.abspath(cache_path)
+        else:
+            self.cache_path = None
         self.url = os.path.abspath(self.file_path)
         if not os.path.exists(self.file_path):
             os.mkdir(self.file_path)
 
     def local_cache_base(self):
+        if self.cache_path is not None:
+            return self.cache_path
         return self.file_path
         
     def _docpath(self, id):
-        return os.path.join(self.file_path, id[:2], "dataset_" + id + FILE_SUFFIX)
+        return os.path.join(self.file_path, id[0], id[1], id[2], "dataset_" + id + FILE_SUFFIX)
 
     def _doclist(self):
-        return glob(os.path.join(self.file_path, "*", "dataset_*" + FILE_SUFFIX))
+        return glob(os.path.join(self.file_path, "*", "*", "*", "dataset_*" + FILE_SUFFIX))
 
     def get(self, id):
         id = self.cleanid(id)
@@ -203,8 +209,8 @@ class LocalDocStore(FileDocStore):
     """
 
     def __init__(self, file_path, cache_path=None, **kwds):
-        objs = LocalFileStore(DiskObjectStoreConfig(), file_path=file_path, **kwds)
-        super(LocalDocStore, self).__init__(file_path, object_store=objs, **kwds)
+        objs = LocalFileStore(DiskObjectStoreConfig(), file_path=file_path, cache_path=cache_path, **kwds)
+        super(LocalDocStore, self).__init__(file_path, cache_path=cache_path, object_store=objs, **kwds)
         self.data_map = {}
         
     def get(self, id):

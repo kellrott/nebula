@@ -54,7 +54,7 @@ class CachedDiskObjectStore(ObjectStore):
     def get_filename(self, obj, **kwargs):
         path_dir = self._cache_path_dir(obj)
         if not os.path.exists(path_dir):
-            os.mkdir(path_dir)
+            os.makedirs(path_dir)
             self._fix_permissions(path_dir)
         local_path = self._cache_path(obj)
         if not os.path.exists(local_path):

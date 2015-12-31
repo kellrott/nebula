@@ -5,10 +5,8 @@ import unittest
 import time
 import os
 import uuid
-import nebula.tasks
-from nebula.galaxy import GalaxyWorkflow
-from nebula.service import GalaxyService, TaskJob
-from nebula.target import Target
+from nebula import Target
+from nebula.galaxy import GalaxyWorkflow, GalaxyService
 from nebula.docstore import AgroDocStore
 from nebula.docstore.util import sync_doc_dir
 import json

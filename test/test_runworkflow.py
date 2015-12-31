@@ -6,12 +6,15 @@ import time
 import shutil
 import logging
 import json
-import nebula.tasks
 from nebula.docstore import FileDocStore
 from nebula.docstore.util import sync_doc_dir
 from nebula import Target
-from nebula.galaxy import GalaxyService, GalaxyWorkflow
+from nebula.galaxy import GalaxyService, GalaxyWorkflow, GalaxyWorkflowTask
 
+
+def get_abspath(path):
+    return os.path.join(os.path.dirname(__file__), path)
+    
 class TestRunWorkflow(unittest.TestCase):
 
     def setUp(self):
@@ -50,7 +53,7 @@ class TestRunWorkflow(unittest.TestCase):
         )
         logging.info("Creating Task")
         workflow = GalaxyWorkflow(ga_file="examples/simple_galaxy/SimpleWorkflow.ga")
-        task = nebula.tasks.GalaxyWorkflowTask(
+        task = GalaxyWorkflowTask(
             "test_workflow", workflow,
             inputs=input,
             parameters=parameters
@@ -71,7 +74,7 @@ class TestRunWorkflow(unittest.TestCase):
 
         #make sure the generated task is serializable
         new_task_data = json.loads(task_data_str)
-        new_task = nebula.tasks.from_dict(new_task_data)
+        new_task = GalaxyWorkflowTask(new_task_data)
 
         logging.info("Starting Service")
         print "Starting service"
@@ -85,7 +88,7 @@ class TestRunWorkflow(unittest.TestCase):
         service.wait([job])
         self.assertIn(job.get_status(), ['ok'])
 
-        bad_task = nebula.tasks.GalaxyWorkflowTask(
+        bad_task = GalaxyWorkflowTask(
             "test_workflow_bad",
             workflow,
             inputs=input,

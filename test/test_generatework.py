@@ -9,11 +9,9 @@ import shutil
 import nebula.docstore
 from glob import glob
 
-from nebula.target import TargetFile
+from nebula import TargetFile, TaskGroup
 from nebula.docstore import FileDocStore
-from nebula.service import GalaxyService
-from nebula.tasks import GalaxyWorkflowTask, TaskGroup
-from nebula.galaxy import GalaxyWorkflow
+from nebula.galaxy import GalaxyService, GalaxyWorkflowTask, GalaxyWorkflow
 
 def get_abspath(path):
     return os.path.join(os.path.dirname(__file__), path)
@@ -39,7 +37,7 @@ class DocStoreTest(unittest.TestCase):
             workflow = GalaxyWorkflow(ga_file=get_abspath("../examples/simple_galaxy/SimpleWorkflow.ga"))
             task = GalaxyWorkflowTask("workflow_%s" % (i), workflow,
                 inputs={
-                'input_file' : t
+                    'input_file' : t
                 }
             )
             tasks.append(task)
