@@ -5,7 +5,7 @@ import json
 from urlparse import urlparse
 from glob import glob
 import logging
-from nebula.target import Target
+from nebula import Target
 
 def scan_doc_dir(path):
     data_map = {}

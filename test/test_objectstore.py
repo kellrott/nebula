@@ -7,10 +7,8 @@ import logging
 import time
 import nebula.docstore
 from nebula.docstore.util import sync_doc_dir
-from nebula.target import Target
-from nebula.service import GalaxyService, TaskJob
-from nebula.galaxy import GalaxyWorkflow
-import nebula.tasks
+from nebula import Target, TaskJob
+from nebula.galaxy import GalaxyService, GalaxyWorkflow, GalaxyWorkflowTask
 
 logging.basicConfig(level=logging.INFO)
 
@@ -77,7 +75,7 @@ class DocStoreTest(unittest.TestCase):
         )
         logging.info("Creating Task")
         workflow = GalaxyWorkflow(ga_file=get_abspath("../examples/simple_galaxy/SimpleWorkflow.ga"))
-        task = nebula.tasks.GalaxyWorkflowTask(
+        task = GalaxyWorkflowTask(
             "test_workflow", workflow,
             inputs=input,
             parameters=parameters,

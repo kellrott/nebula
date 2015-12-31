@@ -64,7 +64,7 @@ class DocStoreTest(unittest.TestCase):
         service = GalaxyService(
             docstore=doc,
             name="nosetest_galaxy",
-            galaxy="bgruening/galaxy-stable",
+            galaxy="bgruening/galaxy-stable:dev",
             port=20022
         )
         json.dumps(service.to_dict())

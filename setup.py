@@ -1,22 +1,31 @@
 
+import os
+import subprocess
+from setuptools import setup, Command
+from glob import glob
 
-from setuptools import setup
+class build_docker(Command):
+    user_options = []
 
+    def initialize_options(self):
+        print "Build Docker"
+    
+    def run(self):
+        for d in glob("docker/*/Dockerfile"):
+            subprocess.check_call("docker build -t %s %s" % (os.path.basename(os.path.dirname(d)), os.path.dirname(d)), shell=True)
+    
+    def finalize_options(self):
+        pass
+      
 setup(
+    cmdclass={'build_docker' : build_docker},
     name='nebula',
     version='0.1dev',
     scripts=["bin/nebula"],
     packages=[
         'nebula',
         'nebula.docstore',
-        'nebula.galaxy',
-        'nebula.service',
-        'nebula.tasks',
-        'nebula.ext',
-        'nebula.ext.galaxy',
-        'nebula.ext.galaxy.exceptions',
-        'nebula.ext.galaxy.objectstore',
-        'nebula.ext.galaxy.util'
+        'nebula.galaxy'
     ],
     install_requires=['requests', 'galaxy-lib'],
     license='Apache',

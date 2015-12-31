@@ -4,10 +4,9 @@ import time
 import json
 
 import nebula.docstore
-from nebula.service import Service, ServiceConfig
-from nebula.target import Target
+from nebula import Service, ServiceConfig, Target
 from nebula.warpdrive import run_up, run_add, run_down
-from nebula.galaxy import GalaxyWorkflow
+from nebula.galaxy.core import GalaxyWorkflow
 
 class HDATarget(Target):
     def __init__(self, meta):

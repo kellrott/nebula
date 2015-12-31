@@ -6,6 +6,9 @@ from glob import glob
 from urlparse import urlparse, ParseResult
 from galaxy.objectstore import ObjectStore, DiskObjectStore
 from nebula.docstore.local_cache import CachedDiskObjectStore
+from nebula.docstore.agro import AgroDocStore
+
+__all__ = ['AgroDocStore']
 
 def from_url(url, **kwds):
     p = urlparse(url)

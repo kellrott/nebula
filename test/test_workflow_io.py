@@ -3,7 +3,7 @@
 import unittest
 import time
 import os
-import nebula.tasks
+import nebula
 from nebula.galaxy import GalaxyWorkflow
 import json
 import shutil
