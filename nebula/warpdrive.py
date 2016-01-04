@@ -315,7 +315,7 @@ def library_paste_sync(rg, data_load, meta_data):
 def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None,
     sudo=False, lib_data=[], auto_add=False, tool_data=None, metadata_suffix=None,
     tool_dir=None, config_dir=DEFAULT_CONFIG, work_dir=None, tool_docker=False, force=False,
-    tool_images=None, smp=[], cpus=None, timeout=60,
+    tool_images=None, smp=[], cpus=None, timeout=60, config=None,
     hold=False, key="HSNiugRFvgT574F43jZ7N9F3"):
 
     if config_dir is None:
@@ -918,7 +918,7 @@ JOB_CHILD_CONF = """<?xml version="1.0"?>
 </job_conf>
 """
 
-def add_warp_build_command(subparsers):
+def add_warp_build_commands(subparsers):
     parser_build = subparsers.add_parser('build')
     parser_build.add_argument("--host", default=None)
     parser_build.add_argument("--sudo", action="store_true", default=False)
@@ -931,14 +931,9 @@ def add_warp_build_command(subparsers):
     parser_build.add_argument("tool_dir")
     parser_build.set_defaults(func=run_build)
 
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-
-    subparsers = parser.add_subparsers(title="subcommand")
-
+def add_warp_run_commands(subparsers):
     parser_up = subparsers.add_parser('up')
-    parser_up.add_argument("-g", "--galaxy", dest="galaxy", default="bgruening/galaxy-stable")
+    parser_up.add_argument("-g", "--galaxy", dest="galaxy", default="bgruening/galaxy-stable:dev")
     parser_up.add_argument("-t", "--tool-dir", default=None)
     parser_up.add_argument("-ti", "--tool-images", default=None)
     parser_up.add_argument("-td", "--tool-data", default=None)
@@ -991,7 +986,15 @@ if __name__ == "__main__":
     parser_add.add_argument("files", nargs="+")
     parser_add.set_defaults(func=run_add)
 
-    add_warp_build_command(subparsers)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+
+    subparsers = parser.add_subparsers(title="subcommand")
+
+
+    add_warp_run_commands(subparsers)
+    add_warp_build_commands(subparsers)
 
     args = parser.parse_args()
 

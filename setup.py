@@ -20,7 +20,7 @@ class build_docker(Command):
 setup(
     cmdclass={'build_docker' : build_docker},
     name='nebula',
-    version='0.1dev',
+    version='0.1.dev0',
     scripts=["bin/nebula"],
     packages=[
         'nebula',

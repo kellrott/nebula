@@ -28,12 +28,13 @@ if __name__ == "__main__":
     
     parser_galaxy = subparsers.add_parser('galaxy')
     galaxy_subparser = parser_galaxy.add_subparsers(title="cmd")
-    nebula.warpdrive.add_warp_build_command(galaxy_subparser)
+    nebula.warpdrive.add_warp_build_commands(galaxy_subparser)
+    nebula.warpdrive.add_warp_run_commands(galaxy_subparser)
 
     parser_cwl = subparsers.add_parser('cwl')
     cwl_subparser = parser_cwl.add_subparsers(title="cmd")
-    nebula.cwl_utils.add_cwl_build_command(cwl_subparser)
-    
+    nebula.cwl.add_cwl_build_command(cwl_subparser)
+
     args = parser.parse_args()
 
     if args.v:

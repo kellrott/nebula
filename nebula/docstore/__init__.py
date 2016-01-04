@@ -208,9 +208,9 @@ class LocalDocStore(FileDocStore):
     Memory based doctstore
     """
 
-    def __init__(self, file_path, cache_path=None, **kwds):
-        objs = LocalFileStore(DiskObjectStoreConfig(), file_path=file_path, cache_path=cache_path, **kwds)
-        super(LocalDocStore, self).__init__(file_path, cache_path=cache_path, object_store=objs, **kwds)
+    def __init__(self, file_path, **kwds):
+        objs = LocalFileStore(DiskObjectStoreConfig(), file_path=file_path, **kwds)
+        super(LocalDocStore, self).__init__(file_path, object_store=objs, **kwds)
         self.data_map = {}
         
     def get(self, id):

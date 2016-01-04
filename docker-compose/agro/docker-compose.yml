@@ -1,0 +1,23 @@
+
+manager : 
+  image: nebula_agro
+  ports:
+    - "9713:9713"
+  links:
+    - mongo
+  command: /opt/agro/bin/agro-manager -mongo mongo
+
+mongo:
+  image: mongo
+  ports:
+    - "27017:27017"
+  command: --smallfiles
+
+worker:
+  image: nebula_agro
+  links: 
+    - manager
+  command: /opt/agro/bin/agro-worker -agro manager:9713 -workdir ${PWD}/workdir
+  volumes:
+    - "/var/run/docker.sock:/var/run/docker.sock"
+    - "${PWD}/workdir:${PWD}/workdir"
