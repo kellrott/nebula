@@ -25,7 +25,8 @@ setup(
     packages=[
         'nebula',
         'nebula.docstore',
-        'nebula.galaxy'
+        'nebula.galaxy',
+        'nebula.cwl'
     ],
     install_requires=['requests', 'galaxy-lib'],
     license='Apache',

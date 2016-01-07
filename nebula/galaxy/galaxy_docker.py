@@ -2,10 +2,11 @@
 import logging
 import time
 import json
+import shutil
 
 import nebula.docstore
 from nebula import Service, ServiceConfig, Target
-from nebula.warpdrive import run_up, run_add, run_down
+from nebula.warpdrive import run_up, run_add, run_down, RemoteGalaxy, web_wait, library_paste_sync
 from nebula.galaxy.core import GalaxyWorkflow
 
 class HDATarget(Target):
@@ -19,7 +20,6 @@ def which(file):
         p = os.path.join(path, file)
         if os.path.exists(p):
             return p
-
 
 def port_active(portnum):
     """
@@ -36,21 +36,35 @@ def port_active(portnum):
 
 class GalaxyService(Service):
 
-    config_defaults= {
+    launch_config_defaults= {
         'name' : "nebula_galaxy",
         'port' : 19999,
         'metadata_suffix' : ".json",
-        'galaxy' : "bgruening/galaxy-stable:dev",
+        'galaxy' : "nebula_galaxy",
         'force' : True,
         'tool_docker' : True
     }
 
-    def __init__(self, docstore, **kwds):
+    inside_config_defaults= {
+        'url' : 'http://localhost:8080',
+        'metadata_suffix' : ".json",
+        'galaxy' : "nebula_galaxy",
+    }
+
+
+    def __init__(self, docstore, resources={}, launch_docker=False, **kwds):
         super(GalaxyService, self).__init__('galaxy')
         self.config = kwds
-        for k in self.config_defaults:
-            if k not in self.config:
-                self.config[k] = self.config_defaults[k]
+        self.launch_docker = launch_docker
+        if launch_docker:
+            for k in self.launch_config_defaults:
+                if k not in self.config:
+                    self.config[k] = self.launch_config_defaults[k]
+        else:
+            for k in self.inside_config_defaults:
+                if k not in self.config:
+                    self.config[k] = self.inside_config_defaults[k]
+        self.config['resources'] = resources
         self.docstore = docstore
         self.rg = None
         self.ready = False
@@ -73,16 +87,32 @@ class GalaxyService(Service):
 
     def is_ready(self):
         return self.ready
+    
+    def get_docker_image(self):
+        return self.config['galaxy']
+    
+    def get_wrapper_command(self):
+        return ["/opt/nebula/bin/nebula", "galaxy", "run"]
 
     def runService(self):
-        #FIXME: the 'file_path' value is specific to the DiskObjectStore
-        docstore_path = self.docstore.file_path
+        web_wait(self.config['url'], 120)
+        
         if 'lib_data' in self.config:
             self.config['lib_data'].append(self.docstore.local_cache_base())
         else:
             self.config['lib_data'] = [ self.docstore.local_cache_base() ]
-        print "running config", self.config
-        self.rg = run_up( **self.config )
+
+	if self.launch_docker:
+		print "running config", self.config
+		self.rg = run_up( **self.config )
+	else:
+		common_dir_map = {}
+		for c in self.config['common_dirs']:
+		    common_dir_map[c] = c            
+		self.rg = RemoteGalaxy(self.config['url'], self.config['api_key'], path_mapping=common_dir_map)
+        
+        library_paste_sync(self.rg, [], {})
+        
         library_id = self.rg.library_find("Imported")['id']
         folder_id = self.rg.library_find_contents(library_id, "/")['id']
 
@@ -158,7 +188,8 @@ class GalaxyService(Service):
         down_config = {}
         #if "work_dir" in self.config:
         #    down_config['work_dir'] = self.config['work_dir']
-        run_down(name=self.config['name'], rm=True, sudo=self.config.get("sudo", False), **down_config)
+	if self.launch_docker:
+	        run_down(name=self.config['name'], rm=True, sudo=self.config.get("sudo", False), **down_config)
 
     def status(self, job_id):
         if job_id in self.active:
@@ -188,7 +219,8 @@ class GalaxyService(Service):
         hda = HDATarget(meta)
         doc_store.create(hda)
         path = doc_store.get_filename(hda)
-        self.rg.download(meta['download_url'], path)
+        shutil.copy(meta['file_name'], path)
+        #self.rg.download(meta['download_url'], path)
         doc_store.update_from_file(hda)
 
     def store_meta(self, object, doc_store):

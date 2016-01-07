@@ -1,0 +1,73 @@
+{
+    "a_galaxy_workflow": "true", 
+    "annotation": "", 
+    "format-version": "0.1", 
+    "name": "MD5_Workflow", 
+    "steps": {
+        "0": {
+            "annotation": "", 
+            "content_id": null, 
+            "id": 0, 
+            "input_connections": {}, 
+            "inputs": [
+                {
+                    "description": "", 
+                    "name": "INPUT"
+                }
+            ], 
+            "label": null, 
+            "name": "Input dataset", 
+            "outputs": [], 
+            "position": {
+                "left": 200, 
+                "top": 216
+            }, 
+            "tool_errors": null, 
+            "tool_id": null, 
+            "tool_state": "{\"name\": \"INPUT\"}", 
+            "tool_version": null, 
+            "type": "data_input", 
+            "uuid": "975cbc1a-624c-4488-9035-553a9f01a066", 
+            "workflow_outputs": []
+        }, 
+        "1": {
+            "annotation": "", 
+            "content_id": "md5_sum", 
+            "id": 1, 
+            "input_connections": {
+                "input": {
+                    "id": 0, 
+                    "output_name": "output"
+                }
+            }, 
+            "inputs": [], 
+            "label": null, 
+            "name": "MD5 Sum Tool", 
+            "outputs": [
+                {
+                    "name": "output", 
+                    "type": "txt"
+                }
+            ], 
+            "position": {
+                "left": 478, 
+                "top": 217
+            }, 
+            "post_job_actions": {}, 
+            "tool_errors": null, 
+            "tool_id": "md5_sum", 
+            "tool_state": "{\"input\": \"null\", \"__rerun_remap_job_id__\": null, \"__page__\": 0}", 
+            "tool_version": "1.0.0", 
+            "type": "tool", 
+            "uuid": "8d74a0b4-899e-477b-9855-4bb62aaaf1ab", 
+            "workflow_outputs": [
+                {
+                    "label": null, 
+                    "output_name": "output", 
+                    "uuid": "e86c8f35-7bf2-4e8d-a713-dc9db9de6cdb"
+                }
+            ]
+        }
+    }, 
+    "uuid": "78c12c03-5a43-4f36-b641-375aa4f858b0"
+}

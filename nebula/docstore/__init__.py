@@ -10,11 +10,12 @@ from nebula.docstore.agro import AgroDocStore
 
 __all__ = ['AgroDocStore']
 
-def from_url(url, **kwds):
+def from_url(url, *args, **kwds):
     p = urlparse(url)
     if p.scheme in ['', 'filedoc'] :
-        return FileDocStore(file_path=p.path, **kwds)
-
+        return FileDocStore(file_path=p.path, *args, **kwds)
+    if p.scheme in ['agro']:
+        return AgroDocStore(p.netloc, *args, **kwds)
     raise Exception("Unknown ObjectStore %s" % (url))
 
 

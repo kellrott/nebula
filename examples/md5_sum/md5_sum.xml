@@ -1,0 +1,22 @@
+<tool id="md5_sum" name="MD5 Sum Tool" version="1.0.0">
+	<description>A simple example</description>
+	<requirements>
+		<container type="docker">ubuntu</container>
+	</requirements>
+	<command>
+md5sum ${input} > ${output}
+	</command>
+
+	<inputs>
+		<param format="txt" name="input" type="data" label="Input file" help="" />
+	</inputs>
+
+	<outputs>
+		<data format="txt" name="output" label="Output File"/>
+	</outputs>
+
+	<help>
+You should totally explain how to use your tool here
+	</help>
+
+</tool>

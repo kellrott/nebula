@@ -20,6 +20,7 @@ import logging
 import socket
 import logging
 import nebula.warpdrive
+import nebula.galaxy.cmd
 import nebula.cwl
 
 if __name__ == "__main__":
@@ -30,6 +31,8 @@ if __name__ == "__main__":
     galaxy_subparser = parser_galaxy.add_subparsers(title="cmd")
     nebula.warpdrive.add_warp_build_commands(galaxy_subparser)
     nebula.warpdrive.add_warp_run_commands(galaxy_subparser)
+    nebula.galaxy.cmd.add_nebula_run_commands(galaxy_subparser)
+    nebula.galaxy.cmd.add_nebula_build_commands(galaxy_subparser)
 
     parser_cwl = subparsers.add_parser('cwl')
     cwl_subparser = parser_cwl.add_subparsers(title="cmd")

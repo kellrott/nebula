@@ -256,6 +256,29 @@ def call_docker_save(
     if proc.returncode != 0:
         raise Exception("Call Failed: %s" % (cmd))
 
+def call_docker_load(
+    input,
+    host=None,
+    sudo=False,
+    ):
+
+
+    docker_path = get_docker_path()
+
+    cmd = [
+        docker_path, "load", "-i", input
+    ]
+    sys_env = dict(os.environ)
+    if host is not None:
+        sys_env['DOCKER_HOST'] = host
+    if sudo:
+        cmd = ['sudo'] + cmd
+    logging.info("executing: " + " ".join(cmd))
+    proc = subprocess.Popen(cmd, close_fds=True, env=sys_env)
+    stdout, stderr = proc.communicate()
+    if proc.returncode != 0:
+        raise Exception("Call Failed: %s" % (cmd))
+
 def scan_directory(lpath, metadata_suffix=None):
     data_load = []
     meta_data = {}
@@ -765,6 +788,21 @@ def dom_scan_iter(node, stack, prefix):
         elif node.nodeType == node.TEXT_NODE:
             yield node, prefix, None, getText( node.childNodes )
 
+def tool_dir_scan(tool_dir):
+    for tool_conf in glob(os.path.join(os.path.abspath(tool_dir), "*.xml")) + glob(os.path.join(os.path.abspath(tool_dir), "*", "*.xml")):
+        logging.info("Scanning: " + tool_conf)
+        dom = parseXML(tool_conf)
+        s = dom_scan(dom.childNodes[0], "tool")
+        if s is not None:
+            docker_tag = None
+            scan = dom_scan(dom.childNodes[0], "tool/requirements/container")
+            if scan is not None:
+                for node, prefix, attrs, text in scan:
+                    if 'type' in attrs and attrs['type'] == 'docker':
+                        docker_tag = text
+                        
+            yield list(s)[0][2]['id'], tool_conf, docker_tag
+    
 
 def run_build(tool_dir, host=None, sudo=False, tool=None, no_cache=False, image_dir=None):
     logging.info("BaseDir: %s" % (tool_dir))
@@ -845,6 +883,9 @@ def config_jobs(smp, env, parent_name, job_conf_file="/etc/galaxy/jobs.xml",
 
 TOOL_IMPORT_CONF = """<?xml version='1.0' encoding='utf-8'?>
 <toolbox>
+  <section id="getext" name="Get Data">
+    <tool file="data_source/upload.xml" />
+  </section>
   <section id="imported" name="Imported Tools">
     <tool_dir dir="${TOOL_DIR}"/>
   </section>
