@@ -7,6 +7,8 @@ from nebula.docstore import AgroDocStore
 from nebula.docstore.util import sync_doc_dir
 from nebula import Target
 from nebula.galaxy import GalaxyWorkflow, GalaxyWorkflowTask, GalaxyService
+import nebula.galaxy.cmd
+from nebula.deploy import AgroDeploy
 from urlparse import urlparse
 
 def get_abspath(path):
@@ -30,51 +32,38 @@ class TestAgro(unittest.TestCase):
     def tearDown(self):
         if os.path.exists("./test_tmp/docstore"):
             shutil.rmtree("./test_tmp/docstore")
-        
+        return
         cmd = "docker-compose -f %s stop" % (get_abspath("../docker-compose/agro/docker-compose.yml"))
         subprocess.check_call(cmd, shell=True)
         cmd = "docker-compose -f %s rm -fv" % (get_abspath("../docker-compose/agro/docker-compose.yml"))
         subprocess.check_call(cmd, shell=True)
         
-    def testWorkflowTagging(self):
+    def testWorkflow(self):
+        agro_url = "agro://" + self.agro_server
+        print "agro_url: ", agro_url
+        resources = nebula.galaxy.cmd.action_pack(get_abspath("../examples/md5_sum"), agro_url)
         
-        docstore = AgroDocStore(self.agro_server, "./test_tmp/docstore")
+        deploy = AgroDeploy(self.agro_server)
+        docstore = nebula.docstore.from_url(agro_url, "workdir")
 
-        sync_doc_dir(get_abspath("../examples/simple_galaxy/"), docstore,
+        sync_doc_dir(get_abspath("../examples/simple_data/"), docstore,
             uuid_set=["c39ded10-6073-11e4-9803-0800200c9a66", "26fd12a2-9096-4af2-a989-9e2f1cb692fe"]
         )
-        
+
         input_file_1 = Target(uuid="c39ded10-6073-11e4-9803-0800200c9a66")
         input_file_2 = Target(uuid="26fd12a2-9096-4af2-a989-9e2f1cb692fe")
-        workflow = GalaxyWorkflow(ga_file=get_abspath("../examples/simple_galaxy/SimpleWorkflow.ga"))
-        task_tag = GalaxyWorkflowTask("workflow_ok",
+        workflow = GalaxyWorkflow(ga_file=get_abspath("../examples/md5_sum/Galaxy-Workflow-MD5_Workflow.ga"))
+        task = GalaxyWorkflowTask("test",
             workflow,
             inputs={
-                'input_file_1' : input_file_1,
-                'input_file_2' : input_file_2
+                'INPUT' : input_file_1,
             },
-            parameters={
-                "tail_select" : {
-                    "lineNum" : 3
-                }
-            },
-            tags=[
-                "fileType:testing",
-                "testType:workflow"
-            ]
         )
-        print "Starting Service"
+        
         service = GalaxyService(
-            docstore=docstore,
-            name="nosetest_galaxy",
-            galaxy="bgruening/galaxy-stable:dev",
-            force=True,
-            port=20022
+            resources=resources,
+            docstore=docstore
         )
-        service.start()
-        self.service = service
-        job = service.submit(task_tag)
-        service.wait([job])
-        self.assertIn(job.get_status(), ['ok'])
-        self.assertFalse( service.in_error() )
-        self.docstore = None
+        
+        deploy.run(service, task)
+    
