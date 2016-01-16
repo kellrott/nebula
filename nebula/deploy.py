@@ -74,9 +74,6 @@ class AgroDeploy(Deployer):
         job_cmd = []
         job_cmd.extend( service.get_wrapper_command() )
         job_cmd.extend( ["--docstore", service.docstore.get_url()] )
-        job_cmd.append( "/nebula/service" )
-        job_cmd.append( "/nebula/task" )
-        
         
         agro_task = agro_pb2.Task()
         task_id = str(uuid.uuid4())
@@ -84,8 +81,13 @@ class AgroDeploy(Deployer):
         agro_task.command = job_cmd[0]
         agro_task.container = service.get_docker_image()
         
-        agro_task.args.add( arg="--docstore" )
-        agro_task.args.add( arg=service.docstore.get_url() )
+        agro_task.requirements.extend( [agro_pb2.TaskRequirement(
+            name="docker_socket",
+            value="/var/run/docker.sock"
+        ) ] )
+        
+        for a in job_cmd[1:]:
+            agro_task.args.add( arg=a )
 
         service_file_id = str(uuid.uuid4())
         pyagro.upload_file_str(files, service_file_id, json.dumps(service.to_dict()), "service")
