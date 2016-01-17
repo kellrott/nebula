@@ -128,7 +128,8 @@ def run_workflow(request, docstore, workdir, hold=False, hold_error=False):
 
         if job.get_status() not in ['ok']:
             sys.stderr.write("---ERROR---\n")
-            sys.stderr.write( job.error_msg.encode('utf-8') + "\n")
+            if job.error_msg is not None:
+                sys.stderr.write( job.error_msg.encode('utf-8') + "\n")
             sys.stderr.write("---ERROR---\n")
             error = 1
     finally:
