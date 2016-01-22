@@ -86,6 +86,12 @@ class AgroDeploy(Deployer):
             value="/var/run/docker.sock"
         ) ] )
         
+        #TODO: The workdir needs to be part of the class
+        agro_task.requirements.extend( [agro_pb2.TaskRequirement(
+            name="work_dir",
+            value="/export"
+        ) ] )
+        
         for a in job_cmd[1:]:
             agro_task.args.add( arg=a )
 
