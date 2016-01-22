@@ -64,11 +64,15 @@ def action_run(config, request, docstore,
             default_container=config_doc['config']['galaxy'], plugin="local", handler="main")
         print "Starting Galaxy"
         subprocess.check_call(galaxy_start, shell=True, env=env)
-        e = run_workflow(request=request, docstore=docstore, workdir=workdir)
+        e = run_workflow(request=request, docstore=docstore, workdir=workdir, hold=hold)
     except Exception, e:
         traceback.print_exc()
         sys.stderr.write("%s\n" % (e.message))
         e = 1
+        if  hold or (hold_error and not error):
+            while True:
+                time.sleep(10)
+
     #subprocess.check_call(galaxy_stop, shell=True, env=env)
     logging.info("Exiting")
     time.sleep(5) # I don't know why this works, but it stops hanging
@@ -127,6 +131,7 @@ def run_workflow(request, docstore, workdir, hold=False, hold_error=False):
         service.wait([job])
 
         if job.get_status() not in ['ok']:
+            sys.stderr.write("job: %s " % job.get_status() )
             sys.stderr.write("---ERROR---\n")
             if job.error_msg is not None:
                 sys.stderr.write( job.error_msg.encode('utf-8') + "\n")
@@ -137,6 +142,9 @@ def run_workflow(request, docstore, workdir, hold=False, hold_error=False):
         if not hold and (not hold_error or not error):
             logging.info("Stopping Galaxy Service")
             service.stop()
+        else:
+            while True:
+                time.sleep(10)
     #ds.close()
     
     return error
