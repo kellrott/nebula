@@ -2,6 +2,7 @@
 import logging
 import time
 import json
+import os
 
 import nebula.docstore
 from nebula.service import Service, ServiceConfig
@@ -186,7 +187,16 @@ class GalaxyService(Service):
         hda = HDATarget(meta)
         doc_store.create(hda)
         path = doc_store.get_filename(hda)
-        self.rg.download(meta['download_url'], path)
+        ent_size = meta['file_size']
+        retry_count = 5
+        while retry_count > 0:
+            self.rg.download(meta['download_url'], path)
+            file_size = os.path.getsize(path)
+            if file_size == ent_size:
+                break
+            retry_count -= 1
+        if retry_count <= 0:
+            raise Exception("Downloads failed")
         doc_store.update_from_file(hda)
 
     def store_meta(self, object, doc_store):
