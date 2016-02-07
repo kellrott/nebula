@@ -4,6 +4,7 @@ import json
 import os
 import json
 import logging
+import uuid
 
 from nebula import Task, Target, TargetFuture
 from nebula import CompileException
@@ -38,7 +39,41 @@ def dom_scan_iter(node, stack, prefix):
         elif node.nodeType == node.TEXT_NODE:
             yield node, prefix, None, getText( node.childNodes )
 
+class GalaxyResources(object):
+    def __init__(self):
+        self.tools = []
+        self.images = []
+    
+    def add_tool_package(self, path, meta={}):
+        o = {"meta" : meta}
+        o['path'] = path
+        self.tools.append(o)
 
+    def add_docker_image_file(self, path, meta={}):
+        o = {"meta" : meta}
+        o['path'] = path
+        self.images.append(o)
+    
+    def sync(self, ds):
+        for tool in self.tools:
+            tool_file_id = str(uuid.uuid4())
+            t = Target(tool_file_id)
+            ds.update_from_file(t, tool['path'], create=True)
+            ds.put(t.id, tool['meta'])
+            tool['id'] = tool_file_id
+
+        for image in self.images:
+            image_file_id = str(uuid.uuid4())
+            t = Target(image_file_id)
+            ds.update_from_file(t, image['path'], create=True)
+            ds.put(t.id, image['meta'])
+            image['id'] = image_file_id
+    
+    def to_dict(self):
+        return {
+            'tools'  : list({"id" : a['id']} for a in self.tools),
+            'images' : list({"id" : a['id']} for a in self.images)
+        }
 
 class WorkflowStep(object):
     def __init__(self, workflow, desc):

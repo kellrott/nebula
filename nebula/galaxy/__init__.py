@@ -15,5 +15,5 @@ import json
 from glob import glob
 from xml.dom.minidom import parse as parseXML
 from nebula.galaxy.galaxy_docker import GalaxyService
-from nebula.galaxy.core import GalaxyWorkflow, GalaxyWorkflowTask
+from nebula.galaxy.core import GalaxyWorkflow, GalaxyWorkflowTask, GalaxyResources
 

@@ -64,7 +64,10 @@ class GalaxyService(Service):
             for k in self.inside_config_defaults:
                 if k not in self.config:
                     self.config[k] = self.inside_config_defaults[k]
-        self.config['resources'] = resources
+        if isinstance(resources, dict):
+            self.config['resources'] = resources
+        else:
+            self.config['resources'] = resources.to_dict()            
         self.docstore = docstore
         self.rg = None
         self.ready = False
