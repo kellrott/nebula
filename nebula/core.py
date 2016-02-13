@@ -1,16 +1,17 @@
 
+"""
+Core Nebula Concepts
+"""
+
 import os
-import uuid
 import uuid
 import json
-import os
-import sys
 import time
 import logging
 
 from threading import Thread, RLock
-
-from nebula.util import service_from_dict, file_uuid
+from nebula.exceptions import NotImplementedException, CompileException
+from nebula.util import task_from_dict, file_uuid
 import traceback
 
 class Target(object):
@@ -40,7 +41,7 @@ class TargetFile(Target):
         self.path = os.path.abspath(path)
         if not os.path.exists(self.path):
             raise CompileException("File Not Found: %s" % (self.path))
-        super(TargetFile,self).__init__(str(file_uuid(self.path)))
+        super(TargetFile, self).__init__(str(file_uuid(self.path)))
         self.parent_task_id = None
 
 
@@ -51,7 +52,7 @@ class TargetFuture(object):
     def __init__(self, parent_task_id, in_uuid=None):
         if not isinstance(parent_task_id, basestring):
             print parent_task_id
-            raise CompileException("Non-String parent ID")
+            raise Exception("Non-String parent ID")
         self.parent_task_id = parent_task_id
         if in_uuid is None:
             self.id = str(uuid.uuid4())
@@ -66,8 +67,8 @@ class TargetFuture(object):
 
 
 class Task(object):
-    def __init__(self, task_id):
-        self.task_id = task_id
+    def __init__(self):
+        pass
 
     def get_inputs(self):
         raise NotImplementedException()
@@ -86,15 +87,15 @@ class TaskGroup(object):
         self.tasks.append(task)
 
     def to_dict(self):
-        return list( a.to_dict() for a in self.tasks )
+        return list(a.to_dict() for a in self.tasks)
 
     def store(self, handle):
         for a in self.tasks:
-            handle.write( json.dumps(a.to_dict()) + "\n" )
+            handle.write(json.dumps(a.to_dict()) + "\n")
 
     def load(self, handle):
         for line in handle:
-            self.tasks.append( service_from_dict(json.loads(line)) )
+            self.tasks.append(task_from_dict(json.loads(line)))
 
     def __len__(self):
         return len(self.tasks)
@@ -104,9 +105,12 @@ class TaskGroup(object):
 
 
 
-class Service(Thread):
+class Engine(Thread):
+    """
+
+    """
     def __init__(self, name):
-        super(Service, self).__init__()
+        super(Engine, self).__init__()
         self.name = name
         self.queue_lock = RLock()
         self.queue = {}
@@ -137,16 +141,18 @@ class Service(Thread):
         return None
 
     def is_ready(self):
+        """
+        """
         return True
 
     def run(self):
         try:
-            self.runService()
-        except Exception, e:
+            self.runEngine()
+        except Exception, exc:
             self.exception_str = traceback.format_exc()
-            logging.error("Service Failure:" + str(e))
+            logging.error("Engine Failure:" + str(exc))
             print self.exception_str
-            self.exception = e
+            self.exception = exc
 
     def in_error(self):
         if self.exception is not None:
@@ -178,7 +184,9 @@ class Service(Thread):
                         self.store_data(dataset, self.docstore)
                         data_collect_count += 1
                     collected.append(i.job_id)
-                    logging.info("Collected: %d meta %d data" % (meta_collect_count, data_collect_count))
+                    logging.info("Collected: %d meta %d data",
+                            meta_collect_count, data_collect_count
+                    )
                 if status in ['error'] and i.job_id not in collected:
                     logging.info("Collecting error output of %s" % (i.job_id))
                     for name, dataset in i.get_outputs(all=True).items():
@@ -190,7 +198,6 @@ class Service(Thread):
                 break
             if self.in_error():
                 raise Exception("Service Error")
-                break
             time.sleep(sleep_time)
             if sleep_time < 60:
                 sleep_time += 1
@@ -217,26 +224,6 @@ class Service(Thread):
 
     def store_meta(self, data, object_store):
         raise NotImplementedException()
-
-
-class ServiceConfig:
-    def __init__(self, **kwds):
-        self.config = kwds
-
-    def store(self, handle):
-        handle.write(json.dumps(self.config))
-
-    def load(self, handle):
-        line = handle.readline()
-        self.config = json.loads(line)
-        return self
-
-    def set_docstore_config(self, **kwds):
-        self.config['docstore_config'] = kwds
-        return self
-
-    def create(self):
-        return service_from_dict(self.config)
 
 
 class TaskJob(object):

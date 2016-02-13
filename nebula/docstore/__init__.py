@@ -153,10 +153,10 @@ class FileDocStore(DocStore):
 
     def put(self, id, doc):
         id = self.cleanid(id)
-        dir = os.path.join(self.file_path, id[:2])
+        dir = os.path.join(self.file_path, id[0], id[1], id[2])
         if not os.path.exists(dir):
-            os.mkdir(dir)
-        path =self._docpath(id)
+            os.makedirs(dir)
+        path = self._docpath(id)
         with open(path, "w") as handle:
             handle.write(self.dumpdoc(doc))
 

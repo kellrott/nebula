@@ -2,7 +2,6 @@
 import os
 import re
 import json
-from urlparse import urlparse
 from glob import glob
 import logging
 from nebula import Target
@@ -17,12 +16,15 @@ def scan_doc_dir(path):
                     meta = json.loads(handle.read())
                     if 'uuid' in meta:
                         data_map[meta['uuid']] = data_path
-            except:
+            except Exception:
                 pass
     return data_map
 
 
 def sync_doc_dir(path, docstore, uuid_set=None, filter=None):
+    """
+    Copy file directory to docstore
+    """
     data_map = scan_doc_dir(path)
     #print "Scanned", path, data_map
     for uuid, path in data_map.items():
@@ -37,7 +39,7 @@ def sync_doc_dir(path, docstore, uuid_set=None, filter=None):
                 if not filter(meta):
                     copy = False
             if copy:
-                logging.info("Adding file: %s" % (path))
+                logging.info("Adding file: %s", path)
                 docstore.update_from_file(t, path, create=True)
                 with open(path + ".json") as handle:
                     meta = json.loads(handle.read())

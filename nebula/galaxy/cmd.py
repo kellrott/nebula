@@ -14,9 +14,6 @@ import os
 import sys
 import time
 import json
-import argparse
-import logging
-import socket
 import logging
 import subprocess
 import traceback
@@ -25,51 +22,69 @@ import shutil
 from uuid import uuid4
 
 import nebula.docstore
-from nebula import Target, TaskGroup, TargetFile
-from nebula.galaxy import GalaxyWorkflow, GalaxyService, GalaxyWorkflowTask
+from nebula import Target
+from nebula.galaxy import GalaxyWorkflow,\
+GalaxyWorkflowTask, GalaxyEngine, GalaxyResources
 from nebula import warpdrive
 
-def action_run(config, request, docstore,
+def action_run(
+    task, docstore,
     galaxy_start, galaxy_stop, tool_dir=None, hold=False,
-    tool_tar=None, hold_error=False, workdir="outputs", inputs=[]):
+    tool_tar=None, hold_error=False, workdir="outputs"):
+    """
 
+    """
     try:
         if tool_dir is not None:
             warpdrive.config_tool_dir(tool_dir, os.environ)
-        warpdrive.config_jobs({}, os.environ, 
-            parent_name=os.environ.get('HOSTNAME', None), 
-            plugin="local",
-            handler="main")
-        
-        config_doc = {}
-        if config is not None:
-            with open(config) as handle:
-                config_doc = json.loads(handle.read())
-        ds = nebula.docstore.from_url(docstore, file_path="/export/datastore")
-        for i in config_doc['config']['resources']['images']:
+        warpdrive.config_jobs({}, os.environ,
+                              parent_name=os.environ.get('HOSTNAME', None),
+                              plugin="local",
+                              handler="main")
+
+        with open(task) as handle:
+            task_doc = json.loads(handle.read())
+        ds = nebula.docstore.from_url(docstore, cache_path="/export/datastore")
+        print json.dumps(task_doc, indent=4)
+        for i in task_doc['engine']['resources']['images']:
             image_file = ds.get_filename( Target(i['id']) )
             warpdrive.call_docker_load(image_file)
         if not os.path.exists("/export/tools"):
             os.mkdir("/export/tools")
-        for i in config_doc['config']['resources']['tools']:
-            tool_file = ds.get_filename( Target(i['id']) )
+        for i in task_doc['engine']['resources']['tools']:
+            tool_file = ds.get_filename(Target(i['id']))
             subprocess.check_call(["/bin/tar", "xzf", tool_file], cwd="/export/tools")
-        ds = None
         env = dict(os.environ)
         warpdrive.config_tool_dir("/export/tools", env)
         smp = {}
-        warpdrive.config_jobs(smp=smp, env=env, 
+        warpdrive.config_jobs(
+            smp=smp, env=env,
             parent_name=os.environ['HOSTNAME'], 
             job_conf_file="/etc/galaxy/jobs.xml", 
-            default_container=config_doc['config']['galaxy'], plugin="local", handler="main")
+            default_container=task_doc['engine']['config']['galaxy'], 
+            plugin="local", handler="main")
         print "Starting Galaxy"
         subprocess.check_call(galaxy_start, shell=True, env=env)
-        e = run_workflow(request=request, docstore=docstore, workdir=workdir, hold=hold)
+        
+        #create an instance of the galaxy engine wrapper that links
+        #to the galaxy instance we just started
+        engine = GalaxyEngine(
+            docstore=ds,
+            launch_docker=False,
+            resources=GalaxyResources(),
+            url="http://localhost:8080",
+            api_key=os.environ['GALAXY_DEFAULT_ADMIN_KEY'],
+            #common_dirs=common_dirs
+        )
+        e = run_workflow(
+            task=task, engine=engine,
+            workdir=workdir, hold=hold)
+        ds = None
     except Exception, e:
         traceback.print_exc()
         sys.stderr.write("%s\n" % (e.message))
         e = 1
-        if  hold or (hold_error and not error):
+        if  hold or hold_error:
             while True:
                 time.sleep(10)
 
@@ -87,48 +102,21 @@ def action_run(config, request, docstore,
     """
     #ds.close()
     
-def run_workflow(request, docstore, workdir, hold=False, hold_error=False):
+def run_workflow(task, engine, workdir, hold=False, hold_error=False):
             
-    request_doc = {}
-    if request is not None:
-        with open(request) as handle:
-            request_doc = json.loads(handle.read())
-    inputs = {}
-    request_dirs = []
-
-    ds = nebula.docstore.from_url(docstore, file_path="/export/datastore")
-    request_dirs.append(os.path.abspath(ds.file_path))
-    common_dirs = [ os.path.commonprefix( request_dirs ) ]
-
-    inputs = request_doc['inputs']
+    task_doc = {}
+    if task is not None:
+        with open(task) as handle:
+            task_doc = json.loads(handle.read())
     
-    if request_doc is not None:
-        task = GalaxyWorkflowTask.from_dict(request_doc)
-    else:
-        if 'workflow' in request_doc:
-            workflow = GalaxyWorkflow(workflow=request_doc['workflow'])
-        if args.workflow is not None:
-            workflow = GalaxyWorkflow(ga_file=args.workflow)
-        task = GalaxyWorkflowTask("workflow_test",
-            workflow,
-            inputs=inputs,
-            parameters = request_doc.get('parameters', {})
-        )
-    
-    service = GalaxyService(
-        docstore=ds,
-        url="http://localhost:8080",
-        api_key=os.environ['GALAXY_DEFAULT_ADMIN_KEY'],
-        common_dirs=common_dirs
-    )
-
+    task = GalaxyWorkflowTask.from_dict(task_doc, engine=engine)
     error = 0
     try:
         logging.info("Starting Service")
-        service.start()
+        engine.start()
         logging.info("Starting Task")
-        job = service.submit(task)
-        service.wait([job])
+        job = engine.submit(task)
+        engine.wait([job])
 
         if job.get_status() not in ['ok']:
             sys.stderr.write("job: %s " % job.get_status() )
@@ -141,30 +129,29 @@ def run_workflow(request, docstore, workdir, hold=False, hold_error=False):
         logging.info("Done")
         if not hold and (not hold_error or not error):
             logging.info("Stopping Galaxy Service")
-            service.stop()
+            engine.stop()
         else:
             while True:
                 time.sleep(10)
     #ds.close()
-    
     return error
 
-def action_pack(tooldir, docstore, host=None, sudo=False):
+def action_pack(tooldir, docstore, host=None, sudo=False, no_cache=False):
     image_dir = tempfile.mkdtemp(dir="./", prefix="nebula_pack_")
     if not os.path.exists(image_dir):
         os.mkdir(image_dir)
 
     images = []
     tools = []
-    ds = nebula.docstore.from_url(docstore, file_path="/export/nebula_data")
+    ds = nebula.docstore.from_url(docstore, cache_path="/export/nebula_data")
     for tool_id, tool_conf, docker_tag in warpdrive.tool_dir_scan(tooldir):
         print tool_id, tool_conf, docker_tag
 
         dockerfile = os.path.join(os.path.dirname(tool_conf), "Dockerfile")
         if os.path.exists(dockerfile):
             warpdrive.call_docker_build(
-                host = host,
-                sudo = sudo,
+                host=host,
+                sudo=sudo,
                 no_cache=no_cache,
                 tag=docker_tag,
                 dir=os.path.dirname(tool_conf)
@@ -183,26 +170,28 @@ def action_pack(tooldir, docstore, host=None, sudo=False):
             'name' : docker_tag,
             "type" : "docker_image"
         })
-        images.append( {
+        images.append({
             "id" : t.id,
             'name' : docker_tag,
             "type" : "docker_image"
-        } )
+        })
         archive_dir = os.path.dirname(tool_conf)        
         archive_name = os.path.basename(os.path.dirname(tool_conf))        
         archive_tar = os.path.join(image_dir, "%s.tar.gz" % (archive_name))
-        pack_cmd = "tar -C %s -cvzf %s %s" % (os.path.dirname(archive_dir), archive_tar, archive_name)
+        pack_cmd = "tar -C %s -cvzf %s %s" % (
+                                              os.path.dirname(archive_dir),
+                                              archive_tar, archive_name)
         print "Calling", pack_cmd
         subprocess.check_call(pack_cmd, shell=True)
                 
-        t = Target(str(uuid4()))
+        target = Target(str(uuid4()))
         ds.update_from_file(t, archive_tar, create=True)
-        ds.put(t.id, {
+        ds.put(target.id, {
             'name' : archive_name,
             'type' : "galaxy_tool_archive"
         })
         tools.append({
-            "id" : t.id,
+            "id" : target.id,
             'name' : archive_name,
             'type' : "galaxy_tool_archive"
         })        
@@ -221,8 +210,7 @@ def add_nebula_run_commands(subparsers):
     parser_run.add_argument("--galaxy-start", default="startup_lite -j")
     parser_run.add_argument("--galaxy-stop", default="galaxy_shutdown")
     parser_run.add_argument("--tool-dir", default=None)
-    parser_run.add_argument("config")
-    parser_run.add_argument("request")
+    parser_run.add_argument("task")
     parser_run.set_defaults(func=action_run)
 
 def add_nebula_build_commands(subparsers):

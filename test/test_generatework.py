@@ -1,4 +1,7 @@
 
+"""
+Test Methods for generating workflow requests
+"""
 
 
 import unittest
@@ -6,18 +9,23 @@ import unittest
 import os
 import json
 import shutil
-import nebula.docstore
 from glob import glob
 
 from nebula import TargetFile, TaskGroup
 from nebula.docstore import FileDocStore
-from nebula.galaxy import GalaxyService, GalaxyWorkflowTask, GalaxyWorkflow
+from nebula.galaxy import GalaxyEngine, GalaxyWorkflowTask, GalaxyWorkflow
 
 def get_abspath(path):
+    """
+    Given path relative to this .py file, get full path
+    """
     return os.path.join(os.path.dirname(__file__), path)
 
 
 class DocStoreTest(unittest.TestCase):
+    """
+    Test workflow generation and connections to the docstore
+    """
 
     def setUp(self):
         if not os.path.exists(get_abspath("../test_tmp")):
@@ -27,24 +35,31 @@ class DocStoreTest(unittest.TestCase):
         if os.path.exists(get_abspath("../test_tmp/docstore")):
             shutil.rmtree(get_abspath("../test_tmp/docstore"))
 
-    def testTaskGenerate(self):
+    def test_task_generate(self):
+        """
+        Generate tasks
+        """
         targets = []
-        for a in glob(get_abspath("../examples/simple_galaxy/*.fasta")):
-            targets.append(TargetFile(a))
-
+        for input_path in glob(get_abspath("../examples/simple_galaxy/*.fasta")):
+            targets.append(TargetFile(input_path))
+        doc = FileDocStore(file_path=get_abspath("../test_tmp/docstore"))
+        engine = GalaxyEngine(docstore=doc)
         tasks = TaskGroup()
-        for i, t in enumerate(targets):
-            workflow = GalaxyWorkflow(ga_file=get_abspath("../examples/simple_galaxy/SimpleWorkflow.ga"))
-            task = GalaxyWorkflowTask("workflow_%s" % (i), workflow,
-                inputs={
-                    'input_file' : t
-                }
+        for target in targets:
+            workflow = GalaxyWorkflow(
+                ga_file=get_abspath("../examples/simple_galaxy/SimpleWorkflow.ga")
             )
+            task = GalaxyWorkflowTask(engine, workflow,
+                                      inputs={
+                                          'input_file' : target
+                                      }
+                                     )
             tasks.append(task)
 
         #check if elements can be serialized
-        for a in tasks.to_dict():
-            task_json = json.dumps(a)
+        for task_dict in tasks.to_dict():
+            task_json = json.dumps(task_dict)
+            assert task_json is not None
 
         with open(get_abspath("../test_tmp/nebula_tasks"), "w") as handle:
             tasks.store(handle)
@@ -57,9 +72,12 @@ class DocStoreTest(unittest.TestCase):
         for task in new_tasks:
             print task
 
-    def testServiceGenerate(self):
+    def test_service_generate(self):
+        """
+        Generate service data structure
+        """
         doc = FileDocStore(file_path=get_abspath("../test_tmp/docstore"))
-        service = GalaxyService(
+        service = GalaxyEngine(
             docstore=doc,
             name="nosetest_galaxy",
             galaxy="bgruening/galaxy-stable:dev",

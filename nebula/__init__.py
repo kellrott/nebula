@@ -13,17 +13,8 @@
 
 
 
-from nebula.core import Service, ServiceConfig, Target, Task, TaskJob, TaskGroup, TargetFuture, TargetFile
+from nebula.core import Engine, Target, Task, TaskJob, \
+TaskGroup, TargetFuture, TargetFile
 
-__all__ = ['Service', 'ServiceConfig', 'Target', 'Task', 'TaskJob', 'TargetFuture', 'TargetFile', 'TaskGroup']
-
-class NotImplementedException(Exception):
-    def __init__(self):
-        Exception.__init__(self)
-
-
-class CompileException(Exception):
-    def __init__(self, msg):
-        Exception.__init__(self, msg)
-        self.msg = msg
-
+__all__ = ['Engine', 'Target', 'Task', 'TaskJob',
+'TargetFuture', 'TargetFile', 'TaskGroup']

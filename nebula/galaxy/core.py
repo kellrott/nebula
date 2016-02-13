@@ -1,13 +1,14 @@
 
-import json
+"""
+Core classes for working with the Galaxy engine
+"""
 
-import os
 import json
 import logging
 import uuid
 
 from nebula import Task, Target, TargetFuture
-from nebula import CompileException
+from nebula.util import engine_from_dict
 
 def getText(nodelist):
     rc = []
@@ -35,21 +36,23 @@ def dom_scan_iter(node, stack, prefix):
                         yield out
     else:
         if node.nodeType == node.ELEMENT_NODE:
-            yield node, prefix, dict(node.attributes.items()), getText( node.childNodes )
+            yield node, prefix, dict(node.attributes.items()), getText(node.childNodes)
         elif node.nodeType == node.TEXT_NODE:
-            yield node, prefix, None, getText( node.childNodes )
+            yield node, prefix, None, getText(node.childNodes)
 
 class GalaxyResources(object):
     def __init__(self):
         self.tools = []
         self.images = []
-    
-    def add_tool_package(self, path, meta={}):
+    def add_tool_package(self, path, meta=None):
+        if meta is None:
+            meta = {}
         o = {"meta" : meta}
         o['path'] = path
         self.tools.append(o)
-
-    def add_docker_image_file(self, path, meta={}):
+    def add_docker_image_file(self, path, meta=None):
+        if meta is None:
+            meta = {}
         o = {"meta" : meta}
         o['path'] = path
         self.images.append(o)
@@ -74,6 +77,15 @@ class GalaxyResources(object):
             'tools'  : list({"id" : a['id']} for a in self.tools),
             'images' : list({"id" : a['id']} for a in self.images)
         }
+    
+    @staticmethod
+    def from_dict(data):
+        out = GalaxyResources()
+        for i in data['tools']:
+            out.tools.append(i)
+        for i in data['images']:
+            out.tools.append(i)
+        return out
 
 class WorkflowStep(object):
     def __init__(self, workflow, desc):
@@ -144,6 +156,9 @@ class ValidationError(Exception):
         super(ValidationError, self).__init__(message)
 
 class GalaxyWorkflow(object):
+    """
+    Document describing Galaxy Workflow
+    """
     def __init__(self, workflow=None, ga_file=None):
         if ga_file is not None:
             with open(ga_file) as handle:
@@ -203,7 +218,7 @@ class GalaxyWorkflow(object):
         out = {}
         for k, v in input.get("inputs", input.get("ds_map", {})).items():
             if k in self.desc['steps']:
-                out[k] == v
+                out[k] = v
             else:
                 found = False
                 for step in self.steps():
@@ -215,14 +230,14 @@ class GalaxyWorkflow(object):
 
         for k, v in input.get("parameters", {}).items():
             if k in self.desc['steps']:
-                out[k] == v
+                out[k] = v
             else:
-                found = False
+                #found = False
                 for step in self.steps():
                     label = step.uuid
                     if step.type == 'tool':
                         if step.annotation == k:
-                            found = True
+                            #found = True
                             parameters[label] = v
 
         #TAGS
@@ -249,16 +264,15 @@ class GalaxyWorkflow(object):
         out['inputs_by'] = "step_uuid"
         return out
 
+"""
 class ToolBox(object):
     def __init__(self):
         self.config_files = {}
         self.tools = {}
 
     def scan_dir(self, tool_dir):
-        """
-        scan through directory looking for tool_dir/*/*.xml files and
-        attempting to load them
-        """
+        #scan through directory looking for tool_dir/*/*.xml files and
+        #attempting to load them
         for tool_conf in glob(os.path.join(os.path.abspath(tool_dir), "*", "*.xml")):
             dom = parseXML(tool_conf)
             s = list(dom_scan(dom.childNodes[0], "tool"))
@@ -331,7 +345,7 @@ class Tool(object):
     def get_inputs(self):
         return self.inputs
 
-
+"""
 
 class GalaxyTargetFuture(TargetFuture):
 
@@ -341,25 +355,15 @@ class GalaxyTargetFuture(TargetFuture):
         super(GalaxyTargetFuture, self).__init__(task_id)
 
 class GalaxyWorkflowTask(Task):
-    def __init__(self, task_id, workflow, inputs=None, parameters=None, tags=None, tool_tags=None):
+    """
+    Instance of a Galaxy Workflow to be run
+    """
+    def __init__(self, engine, workflow, inputs=None, parameters=None, tags=None, tool_tags=None):
+        super(GalaxyWorkflowTask, self).__init__()
 
-        super(GalaxyWorkflowTask,self).__init__(task_id) #, inputs=inputs, **kwds)
-
-        """
-        if workflow_file is not None:
-            with open(workflow_file) as handle:
-                self.workflow_data = json.loads(handle.read())
-        if yaml is not None:
-            self.workflow_data = yaml_to_workflow(yaml)
-
-        if workflow is not None:
-            self.workflow_data = workflow
-
-        if self.workflow_data is None:
-            raise Exception("Workflow not defined")
-        """
         if not isinstance(workflow, GalaxyWorkflow):
             raise Exception("Need galaxy workflow")
+        self.engine = engine
         self.workflow = workflow
         self.inputs = inputs
         self.parameters = parameters
@@ -377,7 +381,10 @@ class GalaxyWorkflowTask(Task):
                     if act['action_type'] == 'RenameDatasetAction':
                         new_name = act["action_arguments"]["newname"]
                         old_name = act["output_name"]
-                        outputs[new_name] = GalaxyTargetFuture(task_id=self.task_id, step_id=step['id'], output_name=old_name)
+                        outputs[new_name] = GalaxyTargetFuture(
+                            step_id=step['id'],
+                            output_name=old_name
+                        )
 
         for step in workflow_data['steps'].values():
             if step['type'] == 'data_input':
@@ -397,30 +404,31 @@ class GalaxyWorkflowTask(Task):
         return out
 
     @staticmethod
-    def from_dict(data):
+    def from_dict(data, engine=None):
         request = {}
-        for k,v in data['inputs'].items():
-            if isinstance(v,dict) and 'uuid' in v:
+        for k, v in data['inputs'].items():
+            if isinstance(v, dict) and 'uuid' in v:
                 request[k] = Target(uuid=v['uuid'])
             else:
                 request[k] = v
+        if engine is None:
+            engine = engine_from_dict(data['engine'])
         return GalaxyWorkflowTask(
-            data['task_id'], workflow=GalaxyWorkflow(data['workflow']),
+            engine=engine, workflow=GalaxyWorkflow(data['workflow']),
             inputs=request, parameters=data.get('parameters', None),
             tags=data.get('tags', None), tool_tags=data.get('tool_tags', None)
         )
 
     def to_dict(self):
         inputs = {}
-        for k,v in self.inputs.items():
-            if isinstance(v,Target):
+        for k, v in self.inputs.items():
+            if isinstance(v, Target):
                 inputs[k] = v.to_dict()
             else:
                 inputs[k] = v
         return {
             'task_type' : 'GalaxyWorkflow',
-            'task_id' : self.task_id,
-            'service' : 'galaxy',
+            'engine' : self.engine.to_dict(),
             'workflow' : self.workflow.to_dict(),
             'inputs' : inputs,
             'parameters' : self.parameters,

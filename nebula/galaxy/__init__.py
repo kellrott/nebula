@@ -10,10 +10,16 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+
+"""
+Methods to enable using Galaxy using Nebula
+"""
+
 import os
 import json
 from glob import glob
 from xml.dom.minidom import parse as parseXML
-from nebula.galaxy.galaxy_docker import GalaxyService
+from nebula.galaxy.galaxy_docker import GalaxyEngine
 from nebula.galaxy.core import GalaxyWorkflow, GalaxyWorkflowTask, GalaxyResources
 
+__all__ = ['GalaxyEngine', 'GalaxyResources', 'GalaxyWorkflow', 'GalaxyWorkflowTask']

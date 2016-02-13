@@ -646,7 +646,7 @@ class RemoteGalaxy(object):
                 datapath = os.path.join(dpath, os.path.relpath(datapath, ppath))
                 found = True
                 break
-        if not found:
+        if len(self.path_mapping) > 0 and not found:
             raise Exception("Path %s not in mounted lib_data directories (%s)" % (datapath, ",".join(self.path_mapping.keys())))
         data = {}
         data['folder_id'] = library_folder_id

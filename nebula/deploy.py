@@ -5,6 +5,7 @@ import uuid
 import tempfile
 import subprocess
 import logging
+from nebula.docstore import FileDocStore
 
 try:
     import pyagro
@@ -13,9 +14,9 @@ except ImportError:
     pyagro = None
     agro_pb2 = None
     
-def which(file):
+def which(program):
     for path in os.environ["PATH"].split(":"):
-        p = os.path.join(path, file)
+        p = os.path.join(path, program)
         if os.path.exists(p):
             return p
 
@@ -30,27 +31,28 @@ class CmdLineDeploy(Deployer):
     def __init__(self):
         super(CmdLineDeploy, self).__init__()
     
-    def run(self, service, task):
+    def run(self, task):
         
         workdir = os.path.abspath(tempfile.mkdtemp(dir=self.workdir, prefix="nebula_"))
-        
-        service_path = os.path.join(workdir, "service")
-        with open(service_path, "w") as handle:
-            handle.write(json.dumps(service.to_dict()))
+
         task_path = os.path.join(workdir, "task")
         with open(task_path, "w") as handle:
             handle.write(json.dumps(task.to_dict()))
 
         docker_cmd = [which("docker"), "run"]
-        docker_cmd.extend( ["--rm", "-v", "%s:%s" % (workdir,"/nebula") ])
-        docker_cmd.extend( ["-p", "8080:8080"] )
-        docker_cmd.extend( [ "-v", "/var/run/docker.sock:/var/run/docker.sock"])
-        docker_cmd.append( service.get_docker_image() )
-        docker_cmd.extend( service.get_wrapper_command() )
-        docker_cmd.extend( ["--docstore", service.docstore.get_url()] )
-        docker_cmd.append( "/nebula/service" )
-        docker_cmd.append( "/nebula/task" )
-        logging.info("Running: %s" % " ".join(docker_cmd))
+        docker_cmd.extend(["--rm", "-v", "%s:%s" % (workdir,"/nebula")])
+        docker_cmd.extend(["-p", "8080:8080"])
+        docker_cmd.extend(["-v", "/var/run/docker.sock:/var/run/docker.sock"])
+        if isinstance(task.engine.docstore, FileDocStore):
+            docker_cmd.extend(["-v", "%s:/docstore" % (task.engine.docstore.file_path)])
+        docker_cmd.append(task.engine.get_docker_image())
+        docker_cmd.extend(task.engine.get_wrapper_command())
+        if isinstance(task.engine.docstore, FileDocStore):
+            docker_cmd.extend(["--docstore", "/docstore"])
+        else:
+            docker_cmd.extend(["--docstore", task.engine.docstore.get_url()])
+        docker_cmd.append("/nebula/task")
+        logging.info("Running: %s", " ".join(docker_cmd))
         print("Running: %s" % " ".join(docker_cmd))
         
         proc = subprocess.Popen( docker_cmd )

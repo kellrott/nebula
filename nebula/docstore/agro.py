@@ -1,13 +1,19 @@
 
+"""
+
+"""
+
 import os
 import pyagro
 from pyagro import agro_pb2
 from galaxy.objectstore import directory_hash_id
 
 class AgroDocStore:
+    """
     
-    def __init__(self, server, file_path):
-        self.file_path = os.path.abspath(file_path)
+    """    
+    def __init__(self, server, cache_path):
+        self.cache_path = os.path.abspath(cache_path)
         self.server = server
         self.client = pyagro.AgroClient(self.server)
         self.filestore = self.client.filestore()
@@ -19,7 +25,7 @@ class AgroDocStore:
         return "agro://%s" % (self.server)
     
     def local_cache_base(self):
-        return self.file_path
+        return self.cache_path
     
     def get(self, id):
         doc = self.filestore.GetDoc(agro_pb2.FileID(id=id))
@@ -44,7 +50,7 @@ class AgroDocStore:
         pyagro.upload_file(self.filestore, obj.id, path)
 
     def _cache_path_dir(self, obj):
-        return os.path.join(self.file_path, *directory_hash_id(obj.id))
+        return os.path.join(self.cache_path, *directory_hash_id(obj.id))
 
     def get_filename(self, obj):
         obj_dir = self._cache_path_dir(obj)
