@@ -101,10 +101,9 @@ class DocStore(ObjectStore):
 
 
 class TargetDict(dict):
-    def __init__(self, src):
+    def __init__(self, id, src):
         dict.__init__(self, src)
-        self.uuid = src['uuid']
-        self.id = src.get('id', None)
+        self.id = id
 
 FILE_SUFFIX=".dat.json"
 
@@ -149,7 +148,7 @@ class FileDocStore(DocStore):
             return None
         with open(path) as handle:
             data = handle.read()
-        return TargetDict(self.loaddoc(data))
+        return TargetDict(id, self.loaddoc(data))
 
     def put(self, id, doc):
         id = self.cleanid(id)
@@ -180,7 +179,7 @@ class FileDocStore(DocStore):
                             if meta[k] != v:
                                 match = False
                 if match:
-                    yield doc_id, TargetDict(meta)
+                    yield doc_id, TargetDict(doc_id, meta)
 
     def get_url(self):
         return "filedoc://%s" % (self.url)
@@ -216,7 +215,7 @@ class LocalDocStore(FileDocStore):
         
     def get(self, id):
         id = self.cleanid(id)
-        return TargetDict(self.data_map[id])
+        return TargetDict(id, self.data_map[id])
 
     def put(self, id, doc):
         self.data_map[id] = doc
@@ -235,7 +234,7 @@ class LocalDocStore(FileDocStore):
                         if meta[k] != v:
                             match = False
             if match:
-                yield doc_id, TargetDict(meta)
+                yield doc_id, TargetDict(doc_id, meta)
 
 
     def get_url(self):

@@ -6,6 +6,7 @@ Core classes for working with the Galaxy engine
 import json
 import logging
 import uuid
+import tarfile
 
 from nebula import Task, Target, TargetFuture
 from nebula.util import engine_from_dict
@@ -66,10 +67,27 @@ class GalaxyResources(object):
             tool['id'] = tool_file_id
 
         for image in self.images:
-            image_file_id = str(uuid.uuid4())
-            t = Target(image_file_id)
-            ds.update_from_file(t, image['path'], create=True)
-            ds.put(t.id, image['meta'])
+            t = tarfile.TarFile(image['path'])
+            meta_str = t.extractfile('repositories').read()
+            meta = json.loads(meta_str)
+            tag, rev_value = meta.items()[0]
+            rev, rev_hash = rev_value.items()[0]
+            
+            image_file_id = None
+            for ds_id, meta in ds.filter(type="docker_image", rev_hash=rev_hash):
+                image_file_id = ds_id
+                print "found", ds_id
+
+            if image_file_id is None:
+                image_file_id = str(uuid.uuid4())
+                t = Target(image_file_id)
+                ds.update_from_file(t, image['path'], create=True)
+                meta = dict(image['meta'])
+                meta['type'] = 'docker_image'
+                meta['tag'] = tag
+                meta['rev_tag'] = rev
+                meta['rev_hash'] = rev_hash
+                ds.put(t.id, meta)
             image['id'] = image_file_id
     
     def to_dict(self):
