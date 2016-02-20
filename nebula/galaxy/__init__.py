@@ -20,6 +20,7 @@ import json
 from glob import glob
 from xml.dom.minidom import parse as parseXML
 from nebula.galaxy.galaxy_docker import GalaxyEngine
-from nebula.galaxy.core import GalaxyWorkflow, GalaxyWorkflowTask, GalaxyResources
+from nebula.galaxy.core import  GalaxyWorkflowTask, GalaxyResources
+from nebula.galaxy.io import GalaxyWorkflow
 
 __all__ = ['GalaxyEngine', 'GalaxyResources', 'GalaxyWorkflow', 'GalaxyWorkflowTask']

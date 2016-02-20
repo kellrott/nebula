@@ -44,9 +44,12 @@ def action_run(
 
         with open(task) as handle:
             task_doc = json.loads(handle.read())
+        if 'engine' in task_doc and 'config' in task_doc['engine'] and 'hold' in task_doc['engine']['config']:
+            hold = task_doc['engine']['config']['hold']
         ds = nebula.docstore.from_url(docstore, cache_path="/export/datastore")
         print json.dumps(task_doc, indent=4)
         for i in task_doc['engine']['resources']['images']:
+            print "loading image %s" % (i)
             image_file = ds.get_filename( Target(i['id']) )
             warpdrive.call_docker_load(image_file)
         if not os.path.exists("/export/tools"):
@@ -143,7 +146,7 @@ def action_pack(tooldir, docstore, host=None, sudo=False, no_cache=False):
 
     images = []
     tools = []
-    ds = nebula.docstore.from_url(docstore, cache_path="/export/nebula_data")
+    ds = nebula.docstore.from_url(docstore)
     for tool_id, tool_conf, docker_tag in warpdrive.tool_dir_scan(tooldir):
         print tool_id, tool_conf, docker_tag
 
@@ -157,7 +160,7 @@ def action_pack(tooldir, docstore, host=None, sudo=False, no_cache=False):
                 dir=os.path.dirname(tool_conf)
             )
                 
-        image_file = os.path.join(image_dir, "docker_" + docker_tag.split(":")[0] + ".tar")
+        image_file = os.path.join(image_dir, "docker_" + docker_tag.split(":")[0].replace("/", "_") + ".tar")
         warpdrive.call_docker_save(
             host=host,
             sudo=sudo,

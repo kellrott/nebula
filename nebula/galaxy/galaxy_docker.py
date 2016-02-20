@@ -13,7 +13,8 @@ import socket
 import nebula.docstore
 from nebula import Engine, Target
 from nebula.warpdrive import run_up, run_down, RemoteGalaxy, web_wait, library_paste_sync
-from nebula.galaxy.core import GalaxyWorkflow, GalaxyResources
+from nebula.galaxy.core import GalaxyResources
+from nebula.galaxy.io import GalaxyWorkflow
 
 class HDATarget(Target):
     """

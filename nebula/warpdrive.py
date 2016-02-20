@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import re
 import sys
 import os
 import time
@@ -9,7 +8,6 @@ import argparse
 import subprocess
 import logging
 import requests
-import tempfile
 import string
 import json
 import shutil
@@ -267,6 +265,22 @@ def call_docker_load(
 
     cmd = [
         docker_path, "load", "-i", input
+    ]
+    sys_env = dict(os.environ)
+    if host is not None:
+        sys_env['DOCKER_HOST'] = host
+    if sudo:
+        cmd = ['sudo'] + cmd
+    logging.info("executing: " + " ".join(cmd))
+    proc = subprocess.Popen(cmd, close_fds=True, env=sys_env)
+    stdout, stderr = proc.communicate()
+    if proc.returncode != 0:
+        raise Exception("Call Failed: %s" % (cmd))
+
+def call_docker_pull(tag, host=None, sudo=False):
+    docker_path = get_docker_path()
+    cmd = [
+        docker_path, "pull", tag
     ]
     sys_env = dict(os.environ)
     if host is not None:
@@ -837,6 +851,8 @@ def run_build(tool_dir, host=None, sudo=False, tool=None, no_cache=False, image_
                                         tag=tag,
                                         output=image_file
                                     )
+                            else:
+                                call_docker_pull(host=host, sudo=sudo, tag=tag)
 
 
 def config_tool_dir(tool_dir, env, config_path="/etc/galaxy/import_tool_conf.xml"):

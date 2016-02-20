@@ -13,7 +13,7 @@ from glob import glob
 
 from nebula import TargetFile, TaskGroup
 from nebula.docstore import FileDocStore
-from nebula.galaxy import GalaxyEngine, GalaxyWorkflowTask, GalaxyWorkflow
+from nebula.galaxy import GalaxyEngine, GalaxyWorkflowTask, GalaxyWorkflow, GalaxyResources
 
 def get_abspath(path):
     """
@@ -43,7 +43,7 @@ class DocStoreTest(unittest.TestCase):
         for input_path in glob(get_abspath("../examples/simple_galaxy/*.fasta")):
             targets.append(TargetFile(input_path))
         doc = FileDocStore(file_path=get_abspath("../test_tmp/docstore"))
-        engine = GalaxyEngine(docstore=doc)
+        engine = GalaxyEngine(docstore=doc, resources=GalaxyResources())
         tasks = TaskGroup()
         for target in targets:
             workflow = GalaxyWorkflow(
@@ -79,6 +79,7 @@ class DocStoreTest(unittest.TestCase):
         doc = FileDocStore(file_path=get_abspath("../test_tmp/docstore"))
         service = GalaxyEngine(
             docstore=doc,
+            resources=GalaxyResources(),
             name="nosetest_galaxy",
             galaxy="bgruening/galaxy-stable:dev",
             port=20022
