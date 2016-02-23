@@ -3,14 +3,19 @@
 Core classes for working with the Galaxy engine
 """
 
+import os
 import json
 import logging
 import uuid
 import tarfile
+import shutil
+import tempfile
+import subprocess
 
 from nebula import Task, Target, TargetFuture
 from nebula.util import engine_from_dict
 from nebula.galaxy.io import GalaxyWorkflow
+from nebula import warpdrive
 
 def getText(nodelist):
     rc = []
@@ -45,6 +50,7 @@ def dom_scan_iter(node, stack, prefix):
 class GalaxyResources(object):
     def __init__(self):
         self.tools = []
+        self.tool_dirs = []
         self.images = []
     def add_tool_package(self, path, meta=None):
         if meta is None:
@@ -52,6 +58,11 @@ class GalaxyResources(object):
         o = {"meta" : meta}
         o['path'] = path
         self.tools.append(o)
+    
+    def add_tool_dir(self, path):
+        self.tool_dirs.append(path)
+
+    
     def add_docker_image_file(self, path, meta=None):
         if meta is None:
             meta = {}
@@ -59,7 +70,47 @@ class GalaxyResources(object):
         o['path'] = path
         self.images.append(o)
     
-    def sync(self, ds):
+    def sync(self, ds, workdir="./", docker_host=None, docker_sudo=False):
+        
+        image_dir = tempfile.mkdtemp(dir=workdir, prefix="nebula_pack_")
+        if not os.path.exists(image_dir):
+            os.mkdir(image_dir)
+
+        images = []
+        tools = []
+        
+        for tooldir in self.tool_dirs:
+            for tool_id, tool_conf, docker_tag in warpdrive.tool_dir_scan(tooldir):
+                if docker_tag is not None:
+                    dockerfile = os.path.join(os.path.dirname(tool_conf), "Dockerfile")
+                    if os.path.exists(dockerfile):
+                        warpdrive.call_docker_build(
+                            host=docker_host,
+                            sudo=docker_sudo,
+                            no_cache=False,
+                            tag=docker_tag,
+                            dir=os.path.dirname(tool_conf)
+                        )
+                            
+                    image_file = os.path.join(image_dir, "docker_" + docker_tag.split(":")[0].replace("/", "_") + ".tar")
+                    warpdrive.call_docker_save(
+                        host=docker_host,
+                        sudo=docker_sudo,
+                        tag=docker_tag,
+                        output=image_file
+                    )
+                    self.add_docker_image_file(image_file)
+
+                archive_dir = os.path.dirname(tool_conf)        
+                archive_name = os.path.basename(os.path.dirname(tool_conf))        
+                archive_tar = os.path.join(image_dir, "%s.tar.gz" % (archive_name))
+                pack_cmd = "tar -C %s -cvzf %s %s" % (
+                                                      os.path.dirname(archive_dir),
+                                                      archive_tar, archive_name)
+                print "Calling", pack_cmd
+                subprocess.check_call(pack_cmd, shell=True)
+                self.add_tool_package(archive_tar)
+            
         for tool in self.tools:
             tool_file_id = str(uuid.uuid4())
             t = Target(tool_file_id)
@@ -90,6 +141,9 @@ class GalaxyResources(object):
                 meta['rev_hash'] = rev_hash
                 ds.put(t.id, meta)
             image['id'] = image_file_id
+        
+        shutil.rmtree(image_dir)
+
     
     def to_dict(self):
         return {

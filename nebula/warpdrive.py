@@ -8,9 +8,9 @@ import argparse
 import subprocess
 import logging
 import requests
-import string
 import json
 import shutil
+import jinja2
 
 try:
     import yaml
@@ -399,7 +399,7 @@ def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None
         mounts[os.path.abspath(tool_dir)] = "/tools_import"
         mounts[config_dir] = "/config"
         with open( os.path.join(config_dir, "import_tool_conf.xml"), "w" ) as handle:
-            handle.write(string.Template(TOOL_IMPORT_CONF).substitute(TOOL_DIR="/tools_import"))
+            handle.write(jinja2.Template(TOOL_IMPORT_CONF).render(TOOL_DIR="/tools_import"))
         env['GALAXY_CONFIG_TOOL_CONFIG_FILE'] = "/config/import_tool_conf.xml,config/tool_conf.xml.main"
 
     if tool_images is not None:
@@ -428,7 +428,8 @@ def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None
         #for every different count of SMPs, create a different destination
         smp_destinations = []
         for count in set( a[1] for a in smp ):
-            smp_destinations.append( string.Template(SMP_DEST_CONF).substitute(
+            print "TEST!!!"
+            smp_destinations.append( jinja2.Template(SMP_DEST_CONF).render(
                 DEST_NAME="docker_cluster_smp%s" % (count),
                 TAG=galaxy,
                 NAME=name,
@@ -438,21 +439,19 @@ def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None
 
         smp_tools = []
         for tool, count in smp:
-            smp_tools.append( string.Template(SMP_TOOL_CONF).substitute(
+            smp_tools.append( jinja2.Template(SMP_TOOL_CONF).render(
                     DEST_NAME="docker_cluster_smp%s" % (count),
                     TOOL_ID=tool
                 )
             )
 
         mounts[config_dir] = "/config"
-        job_conf = string.Template(JOB_CHILD_CONF).substitute(
-            TAG=galaxy,
-            NAME=name,
-            COMMON_VOLUMES=common_volumes,
-            SMP_DESTINATIONS="\n".join(smp_destinations),
-            SMP_TOOLS="\n".join(smp_tools),
-            PLUGINS=PLUGINS['slurm'],
-            HANDLERS=HANDLERS['children']
+        job_conf = jinja2.Template(JOB_CHILD_CONF).render(
+            tag=galaxy,
+            name=name,
+            common_volumes=common_volumes,
+            plugin='slurm',
+            handler='children'
         )
         with open( os.path.join(config_dir, "job_conf.xml"), "w" ) as handle:
             handle.write(job_conf)
@@ -857,40 +856,31 @@ def run_build(tool_dir, host=None, sudo=False, tool=None, no_cache=False, image_
 
 def config_tool_dir(tool_dir, env, config_path="/etc/galaxy/import_tool_conf.xml"):
     with open(config_path, "w") as handle:
-        handle.write(string.Template(TOOL_IMPORT_CONF).substitute(TOOL_DIR=tool_dir))
+        handle.write(jinja2.Template(TOOL_IMPORT_CONF).render(TOOL_DIR=tool_dir))
     env['GALAXY_CONFIG_TOOL_CONFIG_FILE'] = "%s,config/tool_conf.xml.main" % (config_path)
 
-def config_jobs(smp, env, parent_name, job_conf_file="/etc/galaxy/jobs.xml", 
-    default_container="nebula_galaxy_runner", common_volumes="", 
-    plugin="slurm", handler="children"):
-    
-    #for every different count of SMPs, create a different destination
-    smp_destinations = []
-    for count in set( a[1] for a in smp ):
-        smp_destinations.append( string.Template(SMP_DEST_CONF).substitute(
-            DEST_NAME="docker_cluster_smp%s" % (count),
-            TAG=default_container,
-            NAME=parent_name,
-            NCPUS=count,
-            COMMON_VOLUMES=common_volumes)
-        )
+def unique(value):
+    return list(set(value))
 
-    smp_tools = []
-    for tool, count in smp:
-        smp_tools.append( string.Template(SMP_TOOL_CONF).substitute(
-                DEST_NAME="docker_cluster_smp%s" % (count),
-                TOOL_ID=tool
-            )
-        )
-    
-    job_conf = string.Template(JOB_CHILD_CONF).substitute(
-        TAG=default_container,
-        NAME=parent_name,
-        COMMON_VOLUMES=common_volumes,
-        SMP_DESTINATIONS="\n".join(smp_destinations),
-        SMP_TOOLS="\n".join(smp_tools),
-        PLUGINS=PLUGINS[plugin],
-        HANDLERS=HANDLERS[handler]
+def config_jobs(smp, env, 
+    parent_name, 
+    job_conf_file="/etc/galaxy/jobs.xml", 
+    network="bridge",
+    default_container="nebula_galaxy_runner", 
+    common_volumes="", 
+    plugin="slurm", handler="children"):
+    jenv = jinja2.Environment()
+    jenv.filters['unique'] = unique
+
+    job_conf_template = jenv.from_string(JOB_CHILD_CONF)
+    job_conf = job_conf_template.render(
+        smp=smp,
+        default_container=default_container,
+        parent_docker=parent_name,
+        parent_volumes=common_volumes,
+        plugin=plugin,
+        network=network,
+        handler=handler
     )
     with open( job_conf_file, "w" ) as handle:
         handle.write(job_conf)
@@ -903,74 +893,66 @@ TOOL_IMPORT_CONF = """<?xml version='1.0' encoding='utf-8'?>
     <tool file="data_source/upload.xml" />
   </section>
   <section id="imported" name="Imported Tools">
-    <tool_dir dir="${TOOL_DIR}"/>
+    <tool_dir dir="{{tool_dir}}"/>
   </section>
 </toolbox>"""
 
-
-SMP_DEST_CONF = """<destination id="${DEST_NAME}" runner="work_runner">
-            <param id="docker_enabled">true</param>
-            <param id="docker_sudo">true</param>
-            <param id="docker_net">bridge</param>
-            <param id="docker_default_container_id">${TAG}</param>
-            <param id="docker_volumes">${COMMON_VOLUMES}</param>
-            <param id="docker_volumes_from">${NAME}</param>
-            <param id="docker_container_image_cache_path">/images</param>
-            <param id="nativeSpecification">--ntasks=${NCPUS}</param>
-        </destination>"""
-
-SMP_TOOL_CONF = """<tool id="${TOOL_ID}" destination="${DEST_NAME}"></tool>"""
-
-PLUGINS = {
-    "slurm" : """
+JOB_CHILD_CONF = """<?xml version="1.0"?>
+<job_conf>
+    {%- if plugin == "slurm" %}
     <plugins workers="2">
         <plugin id="work_runner" type="runner" load="galaxy.jobs.runners.slurm:SlurmJobRunner">
             <param id="drmaa_library_path">/usr/lib/slurm-drmaa/lib/libdrmaa.so</param>
         </plugin>
     </plugins>
-""",
-    "local" : """
+    {% endif -%}
+    {%- if plugin == "local" %}
     <plugins workers="4">
         <plugin id="work_runner" type="runner" load="galaxy.jobs.runners.local:LocalJobRunner"/>
     </plugins>
-"""
-}
+    {% endif %}
 
-HANDLERS = {
-    "children" : """
+    {%- if handler == "children" %}
     <handlers default="handlers">
         <handler id="handler0" tags="handlers"/>
         <handler id="handler1" tags="handlers"/>
     </handlers>
-""",
-    "main" : """
+    {% endif -%}
+    {% if handler == "main" %}
     <handlers>
         <handler id="main"/>
     </handlers>
-"""
-}
-
-JOB_CHILD_CONF = """<?xml version="1.0"?>
-<job_conf>
-    ${PLUGINS}
-    ${HANDLERS}
+    {% endif %}
     <destinations default="cluster_docker">
         <destination id="cluster_docker" runner="work_runner">
             <param id="docker_enabled">true</param>
             <param id="docker_sudo">true</param>
-            <param id="docker_net">bridge</param>
-            <param id="docker_default_container_id">${TAG}</param>
-            <param id="docker_volumes">${COMMON_VOLUMES}</param>
-            <param id="docker_volumes_from">${NAME}</param>
+            <param id="docker_net">{{network}}</param>
+            <param id="docker_default_container_id">{{default_container}}</param>
+            <param id="docker_volumes">{{parent_volumes}}</param>
+            <param id="docker_volumes_from">{{parent_docker}}</param>
             <param id="docker_container_image_cache_path">/images</param>
         </destination>
-        ${SMP_DESTINATIONS}
+        {% for dest in smp|map(attribute=1)|unique %}
+        <destination id="dest_cluster_smp{{dest}}" runner="work_runner">
+            <param id="docker_enabled">true</param>
+            <param id="docker_sudo">true</param>
+            <param id="docker_net">{{network}}</param>
+            <param id="docker_default_container_id">{{default_container}}</param>
+            <param id="docker_volumes">{{parent_volumes}}</param>
+            <param id="docker_volumes_from">{{parent_docker}}</param>
+            <param id="docker_container_image_cache_path">/images</param>
+            <param id="nativeSpecification">--ntasks={{dest}}</param>
+        </destination>
+        {% endfor %}
         <destination id="cluster" runner="work_runner">
         </destination>
     </destinations>
     <tools>
         <tool id="upload1" destination="cluster"></tool>
-        ${SMP_TOOLS}
+        {%- for dest in smp %}
+        <tool id="{{dest[0]}}" destination="dest_cluster_smp{{dest[1]}}"></tool>
+        {%- endfor %}
     </tools>
 </job_conf>
 """
