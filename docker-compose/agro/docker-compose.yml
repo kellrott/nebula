@@ -11,8 +11,9 @@ mongo:
   image: mongo
   ports:
     - "27017:27017"
-  command: --smallfiles
-
+  #command: --smallfiles
+  volumes:
+    - "/tmp/mongo_db:/data/db"
 worker:
   image: nebula_agro
   links: 

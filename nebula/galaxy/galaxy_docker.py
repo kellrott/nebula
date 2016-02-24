@@ -62,17 +62,32 @@ class GalaxyEngine(Engine):
     }
 
 
-    def __init__(self, docstore, resources, launch_docker=False, **kwds):
+    def __init__(self, 
+        docstore, 
+        resources, 
+        url=None, api_key=None,
+        port=None, launch_docker=False, 
+        child_network='bridge',
+        work_volume=None, hold=False):
         super(GalaxyEngine, self).__init__('galaxy')
-        self.config = kwds
         self.launch_docker = launch_docker
+        if work_volume is not None:
+            work_volume = os.path.abspath(work_volume)
+        self.config = {
+            'work_volume' : work_volume,
+            'child_network' : child_network,
+            'port' : port,
+            'url' : url,
+            'api_key' : api_key,
+            'hold' : hold
+        }
         if launch_docker:
             for k in self.launch_config_defaults:
-                if k not in self.config:
+                if k not in self.config or self.config[k] is None:
                     self.config[k] = self.launch_config_defaults[k]
         else:
             for k in self.inside_config_defaults:
-                if k not in self.config:
+                if k not in self.config or self.config[k] is None:
                     self.config[k] = self.inside_config_defaults[k]
         self.resources = resources
         self.docstore = docstore
@@ -108,6 +123,10 @@ class GalaxyEngine(Engine):
 
     def get_wrapper_command(self):
         return ["/opt/nebula/bin/nebula", "galaxy", "run"]
+    
+    def get_work_volume(self):
+        if 'work_volume' in self.config:
+            return "%s:/export" % (self.config['work_volume'])
 
     def runEngine(self):
         web_wait(self.config['url'], 120)

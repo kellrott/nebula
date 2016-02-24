@@ -30,22 +30,18 @@ from nebula import warpdrive
 def action_run(
     task, docstore,
     galaxy_start, galaxy_stop, tool_dir=None, hold=False,
-    tool_tar=None, hold_error=False, workdir="outputs"):
+    tool_tar=None, hold_error=False, work_volume=None):
     """
 
     """
     try:
-        if tool_dir is not None:
-            warpdrive.config_tool_dir(tool_dir, os.environ)
-        warpdrive.config_jobs({}, os.environ,
-                              parent_name=os.environ.get('HOSTNAME', None),
-                              plugin="local",
-                              handler="main")
 
         with open(task) as handle:
             task_doc = json.loads(handle.read())
         if 'engine' in task_doc and 'config' in task_doc['engine'] and 'hold' in task_doc['engine']['config']:
             hold = task_doc['engine']['config']['hold']
+        child_network = task_doc['engine']['config'].get("child_network", "bridge")
+        work_volume = task_doc['engine']['config'].get("work_volume", None)
         ds = nebula.docstore.from_url(docstore, cache_path="/export/datastore")
         print json.dumps(task_doc, indent=4)
         for i in task_doc['engine']['resources']['images']:
@@ -60,10 +56,20 @@ def action_run(
         env = dict(os.environ)
         warpdrive.config_tool_dir("/export/tools", env)
         smp = {}
+        docker_volumes_from = None
+        docker_volumes = None
+        
+        #need to mount /export in somehow
+        if work_volume is None:
+            docker_volumes_from = os.environ['HOSTNAME']
+        else:
+            docker_volumes = "%s:/export" % (work_volume)
         warpdrive.config_jobs(
             smp=smp, env=env,
-            parent_name=os.environ['HOSTNAME'], 
+            docker_volumes_from=docker_volumes_from,
+            docker_volumes=docker_volumes,
             job_conf_file="/etc/galaxy/jobs.xml", 
+            network=child_network,
             default_container=task_doc['engine']['config']['galaxy'], 
             plugin="local", handler="main")
         print "Starting Galaxy"
@@ -81,7 +87,7 @@ def action_run(
         )
         e = run_workflow(
             task=task, engine=engine,
-            workdir=workdir, hold=hold)
+            hold=hold)
         ds = None
     except Exception, e:
         traceback.print_exc()
@@ -105,7 +111,7 @@ def action_run(
     """
     #ds.close()
     
-def run_workflow(task, engine, workdir, hold=False, hold_error=False):
+def run_workflow(task, engine, hold=False, hold_error=False):
             
     task_doc = {}
     if task is not None:
@@ -208,7 +214,7 @@ def add_nebula_run_commands(subparsers):
     parser_run.add_argument("--hold", action="store_true", default=False)
     parser_run.add_argument("--hold-error", action="store_true", default=False)
     parser_run.add_argument("--docstore", default=None)
-    parser_run.add_argument("--workdir", default="output")
+    parser_run.add_argument("--work-volume", default=None)
     parser_run.add_argument("--tool-tar", action="append", default=[])
     parser_run.add_argument("--galaxy-start", default="startup_lite -j")
     parser_run.add_argument("--galaxy-stop", default="galaxy_shutdown")

@@ -45,6 +45,8 @@ class CmdLineDeploy(Deployer):
         docker_cmd.extend(["-v", "/var/run/docker.sock:/var/run/docker.sock"])
         if isinstance(task.engine.docstore, FileDocStore):
             docker_cmd.extend(["-v", "%s:/docstore" % (task.engine.docstore.file_path)])
+        if task.engine.get_work_volume():
+            docker_cmd.extend(["-v", "%s" % task.engine.get_work_volume()])
         docker_cmd.append(task.engine.get_docker_image())
         docker_cmd.extend(task.engine.get_wrapper_command())
         if isinstance(task.engine.docstore, FileDocStore):

@@ -38,8 +38,9 @@ class TestSandBox(unittest.TestCase):
         engine = GalaxyEngine(
             docstore=doc,
             resources=resources,
-            name="nosetest_galaxy",
             port=20022,
+            child_network="none",
+            work_volume=get_abspath("../test_tmp/galaxy"),
             hold=True
         )
 

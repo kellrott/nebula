@@ -856,18 +856,18 @@ def run_build(tool_dir, host=None, sudo=False, tool=None, no_cache=False, image_
 
 def config_tool_dir(tool_dir, env, config_path="/etc/galaxy/import_tool_conf.xml"):
     with open(config_path, "w") as handle:
-        handle.write(jinja2.Template(TOOL_IMPORT_CONF).render(TOOL_DIR=tool_dir))
+        handle.write(jinja2.Template(TOOL_IMPORT_CONF).render(tool_dir=tool_dir))
     env['GALAXY_CONFIG_TOOL_CONFIG_FILE'] = "%s,config/tool_conf.xml.main" % (config_path)
 
 def unique(value):
     return list(set(value))
 
 def config_jobs(smp, env, 
-    parent_name, 
+    docker_volumes_from, 
     job_conf_file="/etc/galaxy/jobs.xml", 
     network="bridge",
     default_container="nebula_galaxy_runner", 
-    common_volumes="", 
+    docker_volumes="", 
     plugin="slurm", handler="children"):
     jenv = jinja2.Environment()
     jenv.filters['unique'] = unique
@@ -876,8 +876,8 @@ def config_jobs(smp, env,
     job_conf = job_conf_template.render(
         smp=smp,
         default_container=default_container,
-        parent_docker=parent_name,
-        parent_volumes=common_volumes,
+        docker_volumes_from=docker_volumes_from,
+        docker_volumes=docker_volumes,
         plugin=plugin,
         network=network,
         handler=handler
@@ -929,8 +929,12 @@ JOB_CHILD_CONF = """<?xml version="1.0"?>
             <param id="docker_sudo">true</param>
             <param id="docker_net">{{network}}</param>
             <param id="docker_default_container_id">{{default_container}}</param>
-            <param id="docker_volumes">{{parent_volumes}}</param>
-            <param id="docker_volumes_from">{{parent_docker}}</param>
+            {%- if docker_volumes is defined %}
+            <param id="docker_volumes">{{docker_volumes}}</param>
+            {% endif -%}
+            {%- if docker_volumes_from %}
+            <param id="docker_volumes_from">{{docker_volumes_from}}</param>
+            {% endif -%}
             <param id="docker_container_image_cache_path">/images</param>
         </destination>
         {% for dest in smp|map(attribute=1)|unique %}
@@ -939,8 +943,8 @@ JOB_CHILD_CONF = """<?xml version="1.0"?>
             <param id="docker_sudo">true</param>
             <param id="docker_net">{{network}}</param>
             <param id="docker_default_container_id">{{default_container}}</param>
-            <param id="docker_volumes">{{parent_volumes}}</param>
-            <param id="docker_volumes_from">{{parent_docker}}</param>
+            <param id="docker_volumes">{{docker_volumes}}</param>
+            <param id="docker_volumes_from">{{docker_volumes_from}}</param>
             <param id="docker_container_image_cache_path">/images</param>
             <param id="nativeSpecification">--ntasks={{dest}}</param>
         </destination>
