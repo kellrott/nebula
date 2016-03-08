@@ -667,7 +667,7 @@ class RemoteGalaxy(object):
         data['name'] = name
         if uuid is not None:
             data['uuid'] = uuid
-        data['dbkey'] = ''
+        #data['dbkey'] = ''
         data['upload_option'] = 'upload_paths'
         data['create_type'] = 'file'
         data['link_data_only'] = 'link_to_files'

@@ -237,5 +237,12 @@ class LocalDocStore(FileDocStore):
                 yield doc_id, TargetDict(doc_id, meta)
 
 
+    def delete(self, obj, **kwds):
+        path = self._docpath(obj.id)
+        print "Delete", path
+        if os.path.exists(path):
+            os.unlink(path)
+        return self.objs.delete(obj, **kwds)
+
     def get_url(self):
-        return "NA"
+        return "filedoc://%s" % (self.url)
