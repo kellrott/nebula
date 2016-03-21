@@ -930,6 +930,8 @@ JOB_CHILD_CONF = """<?xml version="1.0"?>
             <param id="docker_enabled">true</param>
             {%- if sudo %}
             <param id="docker_sudo">true</param>
+            {% else %}
+            <param id="docker_sudo">false</param>
             {% endif -%}
             <param id="docker_net">{{network}}</param>
             <param id="docker_default_container_id">{{default_container}}</param>
@@ -946,6 +948,8 @@ JOB_CHILD_CONF = """<?xml version="1.0"?>
             <param id="docker_enabled">true</param>
             {%- if sudo %}
             <param id="docker_sudo">true</param>
+            {% else %}
+            <param id="docker_sudo">false</param>
             {% endif -%}
             <param id="docker_net">{{network}}</param>
             <param id="docker_default_container_id">{{default_container}}</param>
