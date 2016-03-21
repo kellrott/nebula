@@ -105,6 +105,15 @@ class TargetDict(dict):
         dict.__init__(self, src)
         self.id = id
 
+
+def as_list(a):
+    if isinstance(a, dict):
+        return a.keys()
+    if hasattr(a, "__iter__"):
+        return a
+    return [a]
+
+
 FILE_SUFFIX=".dat.json"
 
 class FileDocStore(DocStore):
@@ -173,10 +182,10 @@ class FileDocStore(DocStore):
                         match = False
                     else:
                         if hasattr(v, "__iter__"):
-                            if meta[k] not in v:
+                            if all(map(lambda x: x not in v, as_list(meta[k]))):
                                 match = False
                         else:
-                            if meta[k] != v:
+                            if all(map(lambda x: x != v, as_list(meta[k]))):
                                 match = False
                 if match:
                     yield doc_id, TargetDict(doc_id, meta)
