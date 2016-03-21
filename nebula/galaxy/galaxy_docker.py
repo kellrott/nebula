@@ -59,6 +59,7 @@ class GalaxyEngine(Engine):
         'url' : 'http://localhost:8080',
         'metadata_suffix' : ".json",
         'galaxy' : "nebula_galaxy",
+        #'docker_user' : '1450'
     }
 
 
@@ -120,6 +121,10 @@ class GalaxyEngine(Engine):
 
     def get_docker_image(self):
         return self.config['galaxy']
+    
+    def get_docker_user(self):
+        return None
+        #return self.config['docker_user']
 
     def get_wrapper_command(self):
         return ["/opt/nebula/bin/nebula", "galaxy", "run"]

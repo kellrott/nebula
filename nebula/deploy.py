@@ -34,6 +34,7 @@ class CmdLineDeploy(Deployer):
     def run(self, task):
         
         workdir = os.path.abspath(tempfile.mkdtemp(dir=self.workdir, prefix="nebula_"))
+        os.chmod(workdir, 0o777)
 
         task_path = os.path.join(workdir, "task")
         with open(task_path, "w") as handle:
@@ -42,6 +43,8 @@ class CmdLineDeploy(Deployer):
         docker_cmd = [which("docker"), "run"]
         docker_cmd.extend(["--rm", "-v", "%s:%s" % (workdir,"/nebula")])
         docker_cmd.extend(["-p", "8080:8080"])
+        if task.engine.get_docker_user():
+            docker_cmd.extend(["-u", task.engine.get_docker_user()])
         docker_cmd.extend(["-v", "/var/run/docker.sock:/var/run/docker.sock"])
         if isinstance(task.engine.docstore, FileDocStore):
             docker_cmd.extend(["-v", "%s:/docstore" % (task.engine.docstore.file_path)])
