@@ -868,6 +868,7 @@ def config_jobs(smp, env,
     network="bridge",
     default_container="nebula_galaxy_runner", 
     docker_volumes="", 
+    sudo=False,
     plugin="slurm", handler="children"):
     jenv = jinja2.Environment()
     jenv.filters['unique'] = unique
@@ -875,6 +876,7 @@ def config_jobs(smp, env,
     job_conf_template = jenv.from_string(JOB_CHILD_CONF)
     job_conf = job_conf_template.render(
         smp=smp,
+        sudo=sudo,
         default_container=default_container,
         docker_volumes_from=docker_volumes_from,
         docker_volumes=docker_volumes,
@@ -926,7 +928,9 @@ JOB_CHILD_CONF = """<?xml version="1.0"?>
     <destinations default="cluster_docker">
         <destination id="cluster_docker" runner="work_runner">
             <param id="docker_enabled">true</param>
+            {%- if sudo %}
             <param id="docker_sudo">true</param>
+            {% endif -%}
             <param id="docker_net">{{network}}</param>
             <param id="docker_default_container_id">{{default_container}}</param>
             {%- if docker_volumes is defined %}
@@ -940,7 +944,9 @@ JOB_CHILD_CONF = """<?xml version="1.0"?>
         {% for dest in smp|map(attribute=1)|unique %}
         <destination id="dest_cluster_smp{{dest}}" runner="work_runner">
             <param id="docker_enabled">true</param>
+            {%- if sudo %}
             <param id="docker_sudo">true</param>
+            {% endif -%}
             <param id="docker_net">{{network}}</param>
             <param id="docker_default_container_id">{{default_container}}</param>
             <param id="docker_volumes">{{docker_volumes}}</param>
