@@ -23,6 +23,7 @@ class DiskObjectStoreConfig:
     def __init__(self, job_work=None, new_file_path=None):
         self.object_store_check_old_style = False
         self.job_working_directory = job_work
+        self.jobs_directory = job_work
         self.new_file_path = new_file_path
         self.umask = 077
 
