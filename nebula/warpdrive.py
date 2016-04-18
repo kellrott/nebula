@@ -399,7 +399,7 @@ def run_up(name="galaxy", galaxy="bgruening/galaxy-stable", port=8080, host=None
         mounts[os.path.abspath(tool_dir)] = "/tools_import"
         mounts[config_dir] = "/config"
         with open( os.path.join(config_dir, "import_tool_conf.xml"), "w" ) as handle:
-            handle.write(jinja2.Template(TOOL_IMPORT_CONF).render(TOOL_DIR="/tools_import"))
+            handle.write(jinja2.Template(TOOL_IMPORT_CONF).render(tool_dir="/tools_import"))
         env['GALAXY_CONFIG_TOOL_CONFIG_FILE'] = "/config/import_tool_conf.xml,config/tool_conf.xml.main"
 
     if tool_images is not None:
