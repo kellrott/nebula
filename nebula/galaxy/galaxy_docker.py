@@ -220,7 +220,7 @@ class GalaxyEngine(Engine):
                         job.instance_id = invc['uuid']
                         job.outputs = {}
                         job.hidden = {}
-                        wf_outputs = wf.get_outputs()
+                        wf_outputs = wf.get_outputs(all=True)
                         for step in invc['steps']:
                             if 'outputs' in step:
                                 if step['workflow_step_label'] is not None:
