@@ -180,7 +180,7 @@ class Engine(Thread):
                         meta_collect_count += 1
                     #only store data for non-hiddent results
                     data_collect_count = 0
-                    for name, dataset in i.get_outputs().items():
+                    for name, dataset in i.get_outputs(all=True).items():
                         self.store_data(dataset, self.docstore)
                         data_collect_count += 1
                     collected.append(i.job_id)
